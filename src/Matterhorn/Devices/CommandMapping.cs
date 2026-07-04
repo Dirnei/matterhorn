@@ -36,6 +36,19 @@ public static class CommandMapping
                     break;
             }
         }
+        // Color: hue+sat travel together as "the color" -> one combined command; a lone key -> individual.
+        var hasHue = setPayload.TryGetValue("hue", out var hue);
+        var hasSat = setPayload.TryGetValue("saturation", out var sat);
+        if (hasHue && hasSat)
+            cmds.Add(new(MatterClusters.ColorControl, "MoveToHueAndSaturation",
+                new Dictionary<string, object?> { ["hue"] = hue.GetInt32(), ["saturation"] = sat.GetInt32() }));
+        else if (hasHue)
+            cmds.Add(new(MatterClusters.ColorControl, "MoveToHue",
+                new Dictionary<string, object?> { ["hue"] = hue.GetInt32(), ["direction"] = 0 }));
+        else if (hasSat)
+            cmds.Add(new(MatterClusters.ColorControl, "MoveToSaturation",
+                new Dictionary<string, object?> { ["saturation"] = sat.GetInt32() }));
+
         return cmds;
     }
 

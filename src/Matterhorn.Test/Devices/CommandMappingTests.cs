@@ -57,4 +57,30 @@ public class CommandMappingTests
     {
         Assert.Empty(CommandMapping.Map(Payload("""{"nonsense":1}""")));
     }
+
+    [Fact]
+    public void Hue_and_saturation_together_produce_one_MoveToHueAndSaturation()
+    {
+        var c = Assert.Single(CommandMapping.Map(Payload("""{"hue":100,"saturation":200}""")));
+        Assert.Equal(MatterClusters.ColorControl, c.ClusterId);
+        Assert.Equal("MoveToHueAndSaturation", c.CommandName);
+        Assert.Equal(100, Assert.IsType<int>(c.Payload["hue"]));
+        Assert.Equal(200, Assert.IsType<int>(c.Payload["saturation"]));
+    }
+
+    [Fact]
+    public void Hue_only_produces_MoveToHue()
+    {
+        var c = Assert.Single(CommandMapping.Map(Payload("""{"hue":42}""")));
+        Assert.Equal("MoveToHue", c.CommandName);
+        Assert.Equal(42, Assert.IsType<int>(c.Payload["hue"]));
+    }
+
+    [Fact]
+    public void Saturation_only_produces_MoveToSaturation()
+    {
+        var c = Assert.Single(CommandMapping.Map(Payload("""{"saturation":77}""")));
+        Assert.Equal("MoveToSaturation", c.CommandName);
+        Assert.Equal(77, Assert.IsType<int>(c.Payload["saturation"]));
+    }
 }
