@@ -134,6 +134,18 @@ public class MatterGatewayActorTests : TestKit
     }
 
     [Fact]
+    public void NodeAdded_carries_transport_into_the_descriptor()
+    {
+        var fake = new FakeMatterController();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, new InMemoryMqttPublisher(), new MqttTopics("matterhorn")));
+        fake.Emit(new NodeAdded(new EndpointInfo(1, 1, "V", "P", 1, 1, "Extended Color Light", true,
+            new[] { MatterClusters.OnOff }, "wifi", 0x01)));
+
+        AwaitAssert(() => Assert.Equal("wifi",
+            gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result[0].Transport));
+    }
+
+    [Fact]
     public void NodeRemoved_drops_every_endpoint_of_the_node()
     {
         var fake = new FakeMatterController();

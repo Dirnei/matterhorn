@@ -7,7 +7,7 @@ public static class ExposesBuilder
 {
     private const int Published = 1, Set = 2, Get = 4, All = 7;
 
-    public static IReadOnlyList<ExposeEntry> Build(IReadOnlyList<uint> clusterIds)
+    public static IReadOnlyList<ExposeEntry> Build(IReadOnlyList<uint> clusterIds, uint colorFeatures)
     {
         var list = new List<ExposeEntry>();
         var has = new HashSet<uint>(clusterIds);
@@ -17,7 +17,15 @@ public static class ExposesBuilder
         if (has.Contains(MatterClusters.LevelControl))
             list.Add(new("numeric", "brightness", All, ValueMin: 0, ValueMax: 254));
         if (has.Contains(MatterClusters.ColorControl))
-            list.Add(new("numeric", "color_temp", All, ValueMin: 147, ValueMax: 500, Unit: "mired"));
+        {
+            if ((colorFeatures & 0x01) != 0) // Hue/Saturation
+            {
+                list.Add(new("numeric", "hue", All, ValueMin: 0, ValueMax: 254));
+                list.Add(new("numeric", "saturation", All, ValueMin: 0, ValueMax: 254));
+            }
+            if ((colorFeatures & 0x10) != 0) // Color Temperature
+                list.Add(new("numeric", "color_temp", All, ValueMin: 147, ValueMax: 500, Unit: "mired"));
+        }
         if (has.Contains(MatterClusters.BooleanState))
             list.Add(new("binary", "contact", Published));
         if (has.Contains(MatterClusters.OccupancySensing))

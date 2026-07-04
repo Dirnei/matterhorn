@@ -85,7 +85,7 @@ public sealed class MatterGatewayActor : ReceiveActor
             $"ep-{info.NodeId}-{info.Endpoint}");
         var descriptor = new DeviceDescriptor(name, info.NodeId.ToString(), info.Endpoint,
             info.VendorName, info.ProductName, info.VendorId, info.ProductId, info.DeviceType, info.Reachable,
-            ExposesBuilder.Build(info.ClusterIds));
+            ExposesBuilder.Build(info.ClusterIds, info.ColorFeatures), info.Transport);
         var reg = new Registered(name, info, actor, descriptor);
         _byKey[(info.NodeId, info.Endpoint)] = reg;
         _byName[name] = reg;
