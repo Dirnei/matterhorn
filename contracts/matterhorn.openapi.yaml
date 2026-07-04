@@ -60,6 +60,17 @@ paths:
       responses:
         '202':
           description: Accepted; the change is applied asynchronously against the fabric.
+    delete:
+      operationId: removeDevice
+      summary: Un-pair (decommission) a device from the fabric.
+      tags: [devices]
+      parameters:
+        - $ref: '#/components/parameters/FriendlyName'
+      responses:
+        '202':
+          description: Decommission started; the device leaves the fabric asynchronously.
+        '404':
+          description: No device with that friendly name.
 
   /api/devices/{name}/rename:
     post:

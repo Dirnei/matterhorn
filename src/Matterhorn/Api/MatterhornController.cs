@@ -56,6 +56,13 @@ public sealed class MatterhornController(GatewayRef gateway) : Gen.MatterhornCon
         };
     }
 
+    public override async Task<IActionResult> RemoveDevice(string name)
+    {
+        var tx = Guid.NewGuid().ToString("N");
+        var result = await Gw.Ask<Bridge.RemoveAccepted>(new Bridge.RemoveRequest(name, tx), Timeout);
+        return result.Found ? Accepted() : NotFound();
+    }
+
     public override Task<ActionResult<Gen.CommissionAccepted>> Commission(Gen.CommissionRequest body)
     {
         var tx = Guid.NewGuid().ToString("N");

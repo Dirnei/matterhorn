@@ -156,6 +156,34 @@ public class MatterhornControllerTests : TestKit, IClassFixture<WebApplicationFa
         Assert.Equal(HttpStatusCode.BadRequest, (await task).StatusCode);
     }
 
+    [Fact]
+    public async Task Remove_device_returns_202_when_found()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGateway(probe.Ref);
+
+        var task = client.DeleteAsync("/api/devices/bulb_5_1");
+
+        var msg = probe.ExpectMsg<RemoveRequest>();
+        Assert.Equal("bulb_5_1", msg.FriendlyName);
+        probe.Reply(new RemoveAccepted(true));
+
+        Assert.Equal(HttpStatusCode.Accepted, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task Remove_missing_device_returns_404()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGateway(probe.Ref);
+
+        var task = client.DeleteAsync("/api/devices/ghost");
+        probe.ExpectMsg<RemoveRequest>();
+        probe.Reply(new RemoveAccepted(false));
+
+        Assert.Equal(HttpStatusCode.NotFound, (await task).StatusCode);
+    }
+
     private HttpClient ClientWithGateway(IActorRef gateway)
     {
         var client = _factory.WithWebHostBuilder(b =>
