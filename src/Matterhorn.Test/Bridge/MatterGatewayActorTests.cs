@@ -5,7 +5,9 @@ using Matterhorn.Bridge;
 using Matterhorn.Devices;
 using Matterhorn.Matter;
 using Matterhorn.Mqtt;
+using Matterhorn.Persistence;
 using Matterhorn.Test.Mqtt;
+using Matterhorn.Test.Persistence;
 
 namespace Matterhorn.Test.Bridge;
 
@@ -178,5 +180,96 @@ public class MatterGatewayActorTests : TestKit
             Assert.Contains(mqtt.Messages, m => m.Topic == "matterhorn/bridge/state" && m.Payload.Contains("online"));
             Assert.Contains(mqtt.Messages, m => m.Topic == "matterhorn/bridge/devices");
         });
+    }
+
+    [Fact]
+    public void Rename_rekeys_the_device_and_republishes_bridge_devices()
+    {
+        var fake = new FakeMatterController();
+        var mqtt = new InMemoryMqttPublisher();
+        var store = new InMemoryNameStore();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, mqtt, new MqttTopics("matterhorn"), store));
+        fake.Emit(new NodeAdded(Light(5)));
+        AwaitAssert(() => Assert.Single(gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result));
+
+        var result = gw.Ask<RenameResult>(new RenameRequest("bulb_5_1", "Living Room Lamp!", "tx1")).Result;
+
+        Assert.True(result.Ok);
+        Assert.Equal("living_room_lamp", result.NewName); // slugified
+        var devices = gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result;
+        Assert.Equal("living_room_lamp", Assert.Single(devices).FriendlyName);
+        Assert.Equal("living_room_lamp", store.Names[(5UL, 1)]); // persisted
+        AwaitAssert(() => Assert.Contains(mqtt.Messages,
+            m => m.Topic == "matterhorn/bridge/response/rename" && m.Payload.Contains("\"tx1\"") && m.Payload.Contains("ok")));
+    }
+
+    [Fact]
+    public void Rename_unknown_device_returns_not_found()
+    {
+        var fake = new FakeMatterController();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, new InMemoryMqttPublisher(), new MqttTopics("matterhorn")));
+
+        var result = gw.Ask<RenameResult>(new RenameRequest("ghost", "whatever", "tx1")).Result;
+
+        Assert.False(result.Ok);
+        Assert.Equal("not_found", result.Error);
+    }
+
+    [Fact]
+    public void Rename_to_an_existing_name_is_rejected()
+    {
+        var fake = new FakeMatterController();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, new InMemoryMqttPublisher(), new MqttTopics("matterhorn")));
+        fake.Emit(new NodeAdded(Light(5)));
+        fake.Emit(new NodeAdded(Light(6)));
+        AwaitAssert(() => Assert.Equal(2, gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result.Count));
+
+        var result = gw.Ask<RenameResult>(new RenameRequest("bulb_5_1", "bulb_6_1", "tx1")).Result;
+
+        Assert.False(result.Ok);
+        Assert.Equal("name_taken", result.Error);
+    }
+
+    [Fact]
+    public void Rename_with_an_empty_slug_is_rejected()
+    {
+        var fake = new FakeMatterController();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, new InMemoryMqttPublisher(), new MqttTopics("matterhorn")));
+        fake.Emit(new NodeAdded(Light(5)));
+        AwaitAssert(() => Assert.Single(gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result));
+
+        var result = gw.Ask<RenameResult>(new RenameRequest("bulb_5_1", "!!!", "tx1")).Result;
+
+        Assert.False(result.Ok);
+        Assert.Equal("invalid_name", result.Error);
+    }
+
+    [Fact]
+    public void Stored_override_is_applied_when_the_device_joins()
+    {
+        var fake = new FakeMatterController();
+        var store = new InMemoryNameStore();
+        store.Names[(5UL, 1)] = "living_room_lamp";
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, new InMemoryMqttPublisher(), new MqttTopics("matterhorn"), store));
+
+        fake.Emit(new NodeAdded(Light(5)));
+
+        AwaitAssert(() => Assert.Equal("living_room_lamp",
+            Assert.Single(gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result).FriendlyName));
+    }
+
+    [Fact]
+    public void Set_after_rename_still_reaches_the_device()
+    {
+        var fake = new FakeMatterController();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, new InMemoryMqttPublisher(), new MqttTopics("matterhorn"), new InMemoryNameStore()));
+        fake.Emit(new NodeAdded(Light(5)));
+        AwaitAssert(() => Assert.Single(gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result));
+        Assert.True(gw.Ask<RenameResult>(new RenameRequest("bulb_5_1", "lamp", "tx1")).Result.Ok);
+
+        var payload = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>("""{"state":"ON"}""")!;
+        gw.Tell(new SetDevice("lamp", payload));
+
+        AwaitAssert(() => Assert.Contains(fake.Invocations, i => i.NodeId == 5 && i.Cmd.CommandName == "On"));
     }
 }

@@ -6,6 +6,7 @@ using Matterhorn.Configuration;
 using Matterhorn.Devices;
 using Matterhorn.Matter;
 using Matterhorn.Mqtt;
+using Matterhorn.Persistence;
 
 namespace Matterhorn.Bridge;
 
@@ -20,6 +21,8 @@ public sealed class MatterGatewayActor : ReceiveActor
     private readonly IMatterController _controller;
     private readonly IMqttPublisher _mqtt;
     private readonly MqttTopics _topics;
+    private readonly INameStore _names;
+    private readonly Dictionary<(ulong, ushort), string> _overrides;
 
     private sealed record Registered(string FriendlyName, EndpointInfo Info, IActorRef Actor, DeviceDescriptor Descriptor);
     // Self-addressed results of the off-actor controller calls, so the actor never blocks on them.
@@ -29,12 +32,14 @@ public sealed class MatterGatewayActor : ReceiveActor
     private readonly Dictionary<string, Registered> _byName = new();
     private ISourceQueueWithComplete<MatterEvent>? _queue;
 
-    public static Props Props(IMatterController controller, IMqttPublisher mqtt, MqttTopics topics) =>
-        Akka.Actor.Props.Create(() => new MatterGatewayActor(controller, mqtt, topics));
+    public static Props Props(IMatterController controller, IMqttPublisher mqtt, MqttTopics topics, INameStore? names = null) =>
+        Akka.Actor.Props.Create(() => new MatterGatewayActor(controller, mqtt, topics, names));
 
-    public MatterGatewayActor(IMatterController controller, IMqttPublisher mqtt, MqttTopics topics)
+    public MatterGatewayActor(IMatterController controller, IMqttPublisher mqtt, MqttTopics topics, INameStore? names = null)
     {
         _controller = controller; _mqtt = mqtt; _topics = topics;
+        _names = names ?? NullNameStore.Instance;
+        _overrides = new Dictionary<(ulong, ushort), string>(_names.Load());
 
         Receive<NodeAdded>(OnNodeAdded);
         Receive<NodeRemoved>(OnNodeRemoved);
@@ -59,6 +64,7 @@ public sealed class MatterGatewayActor : ReceiveActor
         Receive<CommissionDone>(OnCommissionDone);
         Receive<RemoveRequest>(OnRemove);
         Receive<RemoveDone>(OnRemoveDone);
+        Receive<RenameRequest>(OnRename);
     }
 
     protected override void PreStart()
@@ -78,7 +84,9 @@ public sealed class MatterGatewayActor : ReceiveActor
     private void OnNodeAdded(NodeAdded msg)
     {
         var info = msg.Endpoint;
-        var name = FriendlyName.Default(info.ProductName, info.NodeId, info.Endpoint);
+        var name = _overrides.TryGetValue((info.NodeId, info.Endpoint), out var custom)
+            ? custom
+            : FriendlyName.Default(info.ProductName, info.NodeId, info.Endpoint);
         if (_byName.ContainsKey(name)) return;
 
         var actor = Context.ActorOf(MatterEndpointActor.Props(name, info.NodeId, info.Endpoint, _controller, _mqtt, _topics),
@@ -140,6 +148,43 @@ public sealed class MatterGatewayActor : ReceiveActor
             status = done.Error is null ? "ok" : "error",
             error = done.Error,
         }));
+
+    private void OnRename(RenameRequest req)
+    {
+        var result = DoRename(req.FromName, req.ToName);
+        Sender.Tell(result); // REST Ask path; harmless when Told with NoSender (MQTT).
+        _mqtt.Publish(_topics.Base + "/bridge/response/rename", JsonSerializer.Serialize(new
+        {
+            transaction = req.Transaction,
+            status = result.Ok ? "ok" : "error",
+            from = req.FromName,
+            to = result.NewName,
+            error = result.Error,
+        }));
+    }
+
+    private RenameResult DoRename(string from, string to)
+    {
+        var slug = FriendlyName.Slug(to);
+        if (slug.Length == 0) return new RenameResult(false, "invalid_name");
+        if (!_byName.TryGetValue(from, out var reg)) return new RenameResult(false, "not_found");
+        if (slug == from) return new RenameResult(true, null, slug); // no-op
+        if (_byName.ContainsKey(slug)) return new RenameResult(false, "name_taken");
+
+        var updated = reg with { FriendlyName = slug, Descriptor = reg.Descriptor with { FriendlyName = slug } };
+        _byName.Remove(from);
+        _byName[slug] = updated;
+        _byKey[(reg.Info.NodeId, reg.Info.Endpoint)] = updated;
+        reg.Actor.Tell(new Rename(slug));
+
+        _overrides[(reg.Info.NodeId, reg.Info.Endpoint)] = slug;
+        try { _names.Save(_overrides); }
+        catch (Exception ex) { _log.Warning("Failed to persist name override: {Error}", ex.Message); }
+
+        PublishDevices();
+        PublishEvent("device_renamed", new { from, to = slug });
+        return new RenameResult(true, null, slug);
+    }
 
     private void OnReachabilityChanged(ReachabilityChanged r)
     {
