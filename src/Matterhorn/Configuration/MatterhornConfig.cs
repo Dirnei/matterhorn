@@ -6,7 +6,8 @@ namespace Matterhorn.Configuration;
 public record MatterhornConfig(
     string ControllerWsUrl, string ControllerKind,
     string MqttHost, int MqttPort, string? MqttUser, string? MqttPassword,
-    string BaseTopic, bool RestEnabled, int RestPort, string? ApiKey, string? ThreadDataset)
+    string BaseTopic, bool RestEnabled, int RestPort, string? ApiKey, string? ThreadDataset,
+    string NamesFile)
 {
     public static MatterhornConfig FromConfiguration(IConfiguration c) => new(
         ControllerWsUrl: c["Controller:WsUrl"] ?? "ws://localhost:5580/ws",
@@ -17,5 +18,6 @@ public record MatterhornConfig(
         BaseTopic: c["Mqtt:BaseTopic"] ?? "matterhorn",
         RestEnabled: !bool.TryParse(c["Rest:Enabled"], out var re) || re,
         RestPort: int.TryParse(c["Rest:Port"], out var rp) ? rp : 8090,
-        ApiKey: c["Rest:ApiKey"], ThreadDataset: c["Thread:Dataset"]);
+        ApiKey: c["Rest:ApiKey"], ThreadDataset: c["Thread:Dataset"],
+        NamesFile: c["Storage:NamesFile"] ?? "data/names.json");
 }

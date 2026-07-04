@@ -17,8 +17,8 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app ./
 
-ENV ASPNETCORE_URLS=http://+:8090
-EXPOSE 8090
+ENV ASPNETCORE_URLS=http://+:80
+EXPOSE 80
 
 # aspnet images ship a non-root 'app' user.
 USER app

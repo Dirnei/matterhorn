@@ -39,11 +39,17 @@ services:
       Mqtt__Host: "emqx"
       Mqtt__Port: "1883"
       Mqtt__BaseTopic: "matterhorn"
-      ASPNETCORE_URLS: "http://+:8090"
+      Storage__NamesFile: "/data/names.json"
+      ASPNETCORE_URLS: "http://+:80"
     ports:
-      - "16090:8090"     # REST + OpenAPI
+      - "16090:80"     # REST + OpenAPI
+    volumes:
+      - matterhorn-data:/data
     networks: [m2m]
 
 networks:
   m2m:
     driver: bridge
+
+volumes:
+  matterhorn-data:

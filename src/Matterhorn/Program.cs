@@ -9,6 +9,7 @@ using Matterhorn.Configuration;
 using Matterhorn.Dev;
 using Matterhorn.Matter;
 using Matterhorn.Mqtt;
+using Matterhorn.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 var cfg = MatterhornConfig.FromConfiguration(builder.Configuration);
@@ -31,6 +32,7 @@ builder.Services.AddSingleton(cfg);
 builder.Services.AddSingleton(topics);
 builder.Services.AddSingleton(mqttClient);
 builder.Services.AddSingleton(controller);
+builder.Services.AddSingleton<INameStore>(new JsonNameStore(cfg.NamesFile));
 builder.Services.AddSingleton<IMqttPublisher, HiveMqttPublisher>();
 builder.Services.AddSingleton<IConfigureApiKey>(new StaticApiKey(cfg.ApiKey));
 
@@ -45,7 +47,8 @@ builder.Services.AddAkka("matterhorn", (b, sp) => b
     .WithActors((system, registry) =>
     {
         var publisher = sp.GetRequiredService<IMqttPublisher>();
-        var gw = system.ActorOf(MatterGatewayActor.Props(controller, publisher, topics), "gateway");
+        var names = sp.GetRequiredService<INameStore>();
+        var gw = system.ActorOf(MatterGatewayActor.Props(controller, publisher, topics, names), "gateway");
         registry.Register<MatterGatewayActor>(gw);
     }));
 builder.Services.AddSingleton(sp =>
