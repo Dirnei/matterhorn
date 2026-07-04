@@ -5,6 +5,8 @@ namespace Matterhorn.Bridge;
 /// <summary>Control-plane messages handled by <see cref="MatterGatewayActor"/>.</summary>
 public record CommissionRequest(string Code, string Transaction);
 public record RemoveRequest(string FriendlyName, string Transaction);
+/// <summary>Reply to a <see cref="RemoveRequest"/>: whether the device was known (drives REST 202 vs 404).</summary>
+public record RemoveAccepted(bool Found);
 public record RenameRequest(string FromName, string ToName, string Transaction);
 
 /// <summary>Reply to a <see cref="RenameRequest"/>. Error is one of: invalid_name, not_found, name_taken.</summary>

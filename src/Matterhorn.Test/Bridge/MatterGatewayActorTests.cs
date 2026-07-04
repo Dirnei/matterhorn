@@ -340,4 +340,30 @@ public class MatterGatewayActorTests : TestKit
         AwaitAssert(() => Assert.Empty(gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result));
         Assert.False(store.Names.ContainsKey((5UL, 1))); // override pruned from the store
     }
+
+    [Fact]
+    public void RemoveRequest_for_a_known_device_replies_found_and_calls_RemoveNode()
+    {
+        var fake = new FakeMatterController();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, new InMemoryMqttPublisher(), new MqttTopics("matterhorn")));
+        fake.Emit(new NodeAdded(Light(5)));
+        AwaitAssert(() => Assert.Single(gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result));
+
+        var result = gw.Ask<RemoveAccepted>(new RemoveRequest("bulb_5_1", "tx1")).Result;
+
+        Assert.True(result.Found);
+        AwaitAssert(() => Assert.Contains(5UL, fake.Removed));
+    }
+
+    [Fact]
+    public void RemoveRequest_for_an_unknown_device_replies_not_found_and_skips_RemoveNode()
+    {
+        var fake = new FakeMatterController();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, new InMemoryMqttPublisher(), new MqttTopics("matterhorn")));
+
+        var result = gw.Ask<RemoveAccepted>(new RemoveRequest("ghost", "tx1")).Result;
+
+        Assert.False(result.Found);
+        Assert.Empty(fake.Removed);
+    }
 }

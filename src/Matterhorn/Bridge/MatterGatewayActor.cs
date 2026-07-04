@@ -138,8 +138,10 @@ public sealed class MatterGatewayActor : ReceiveActor
 
     private void OnRemove(RemoveRequest req)
     {
-        if (_byName.TryGetValue(req.FriendlyName, out var reg))
-            _controller.RemoveNode(reg.Info.NodeId, CancellationToken.None).ContinueWith(t =>
+        var found = _byName.TryGetValue(req.FriendlyName, out var reg);
+        Sender.Tell(new RemoveAccepted(found)); // REST Ask path; harmless when Told with NoSender (MQTT).
+        if (found)
+            _controller.RemoveNode(reg!.Info.NodeId, CancellationToken.None).ContinueWith(t =>
                 new RemoveDone(req.Transaction, t.IsFaulted ? t.Exception!.GetBaseException().Message : null)).PipeTo(Self);
         else
             Self.Tell(new RemoveDone(req.Transaction, null));
