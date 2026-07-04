@@ -43,6 +43,19 @@ public sealed class MatterhornController(GatewayRef gateway) : Gen.MatterhornCon
         return Task.FromResult<IActionResult>(Accepted());
     }
 
+    public override async Task<IActionResult> RenameDevice(string name, Gen.RenameRequest body)
+    {
+        var tx = Guid.NewGuid().ToString("N");
+        var result = await Gw.Ask<Bridge.RenameResult>(new Bridge.RenameRequest(name, body.To, tx), Timeout);
+        return result switch
+        {
+            { Ok: true } => Ok(),
+            { Error: "not_found" } => NotFound(),
+            { Error: "name_taken" } => Conflict(),
+            _ => BadRequest(),
+        };
+    }
+
     public override Task<ActionResult<Gen.CommissionAccepted>> Commission(Gen.CommissionRequest body)
     {
         var tx = Guid.NewGuid().ToString("N");

@@ -101,6 +101,61 @@ public class MatterhornControllerTests : TestKit, IClassFixture<WebApplicationFa
         Assert.Equal(HttpStatusCode.Accepted, (await task).StatusCode);
     }
 
+    [Fact]
+    public async Task Rename_device_returns_200_on_success()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGateway(probe.Ref);
+
+        var task = client.PostAsJsonAsync("/api/devices/bulb_5_1/rename", new Dictionary<string, string> { ["to"] = "lamp" });
+
+        var msg = probe.ExpectMsg<RenameRequest>();
+        Assert.Equal("bulb_5_1", msg.FromName);
+        Assert.Equal("lamp", msg.ToName);
+        probe.Reply(new RenameResult(true, null, "lamp"));
+
+        Assert.Equal(HttpStatusCode.OK, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task Rename_missing_device_returns_404()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGateway(probe.Ref);
+
+        var task = client.PostAsJsonAsync("/api/devices/ghost/rename", new Dictionary<string, string> { ["to"] = "lamp" });
+        probe.ExpectMsg<RenameRequest>();
+        probe.Reply(new RenameResult(false, "not_found"));
+
+        Assert.Equal(HttpStatusCode.NotFound, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task Rename_conflict_returns_409()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGateway(probe.Ref);
+
+        var task = client.PostAsJsonAsync("/api/devices/bulb_5_1/rename", new Dictionary<string, string> { ["to"] = "taken" });
+        probe.ExpectMsg<RenameRequest>();
+        probe.Reply(new RenameResult(false, "name_taken"));
+
+        Assert.Equal(HttpStatusCode.Conflict, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task Rename_invalid_name_returns_400()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGateway(probe.Ref);
+
+        var task = client.PostAsJsonAsync("/api/devices/bulb_5_1/rename", new Dictionary<string, string> { ["to"] = "!!!" });
+        probe.ExpectMsg<RenameRequest>();
+        probe.Reply(new RenameResult(false, "invalid_name"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await task).StatusCode);
+    }
+
     private HttpClient ClientWithGateway(IActorRef gateway)
     {
         var client = _factory.WithWebHostBuilder(b =>

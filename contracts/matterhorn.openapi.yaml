@@ -61,6 +61,29 @@ paths:
         '202':
           description: Accepted; the change is applied asynchronously against the fabric.
 
+  /api/devices/{name}/rename:
+    post:
+      operationId: renameDevice
+      summary: Rename a device.
+      tags: [devices]
+      parameters:
+        - $ref: '#/components/parameters/FriendlyName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameRequest'
+      responses:
+        '200':
+          description: Renamed.
+        '400':
+          description: The requested name is not usable.
+        '404':
+          description: No device with that friendly name.
+        '409':
+          description: A device with the target name already exists.
+
   /api/commission:
     post:
       operationId: commission
@@ -167,6 +190,14 @@ components:
         code:
           type: string
           description: Matter setup code (QR 'MT:' string or 11-digit manual code).
+
+    RenameRequest:
+      type: object
+      required: [to]
+      properties:
+        to:
+          type: string
+          description: The new friendly name (slugified server-side into a legal topic segment).
 
     CommissionAccepted:
       type: object
