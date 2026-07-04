@@ -28,9 +28,16 @@ docker compose up --build
 
 | What | Where |
 |---|---|
-| EMQX dashboard | http://localhost:16083 — login `admin` / `public` |
+| Device console (UI) | http://localhost:16090/ |
+| Swagger UI | http://localhost:16090/swagger |
 | REST facade | http://localhost:16090 (e.g. `GET /api/devices`) |
+| EMQX dashboard | http://localhost:16083 — login `admin` / `public` |
 | MQTT broker | `localhost:16883`, base topic `matter2mqtt` |
+
+The **device console** is a small self-contained page (`wwwroot/index.html`) for debugging: it lists
+devices, generates controls from each device's `exposes` (toggle / sliders), pushes live state over
+SSE (`GET /api/events`), and can trigger commissioning. It talks only to the REST API — set the API
+key field if one is configured.
 
 Two demo devices are seeded: `essentials_bulb_1_1` (on/off + brightness + color_temp) and
 `motion_sensor_2_1` (temperature/humidity/occupancy/battery, updated every ~10s).

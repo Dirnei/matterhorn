@@ -131,9 +131,12 @@ public sealed class MatterGatewayActor : ReceiveActor
         foreach (var reg in _byName.Values) reg.Actor.Tell(new Republish());
     }
 
-    private void PublishDevices() =>
+    private void PublishDevices()
+    {
         _mqtt.PublishRetained(_topics.BridgeDevices(),
             JsonSerializer.Serialize(_byName.Values.Select(r => r.Descriptor), JsonDefaults.SnakeCase));
+        Context.System.EventStream.Publish(new DeviceListChanged());
+    }
 
     private void PublishEvent(string type, object data) =>
         _mqtt.Publish(_topics.BridgeEvent(), JsonSerializer.Serialize(new { type, data }));

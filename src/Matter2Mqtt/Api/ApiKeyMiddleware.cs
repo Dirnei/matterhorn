@@ -17,7 +17,9 @@ public sealed class ApiKeyMiddleware(RequestDelegate next, IConfigureApiKey key)
         // Only the API surface is protected; docs (/swagger, /openapi) stay public.
         if (ctx.Request.Path.StartsWithSegments("/api") && key.ApiKey is { Length: > 0 } expected)
         {
+            // Header for normal calls; query param for EventSource (SSE), which can't set headers.
             var provided = ctx.Request.Headers["X-Api-Key"].ToString();
+            if (string.IsNullOrEmpty(provided)) provided = ctx.Request.Query["api_key"].ToString();
             if (provided != expected) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
         }
         await next(ctx);

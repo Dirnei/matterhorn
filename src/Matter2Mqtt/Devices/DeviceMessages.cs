@@ -13,3 +13,6 @@ public record Republish;
 /// <summary>Ask an endpoint for its current state; replied to with <see cref="DeviceStateSnapshot"/>.</summary>
 public record GetState;
 public record DeviceStateSnapshot(bool Found, IReadOnlyDictionary<string, object?>? State);
+
+/// <summary>Published on the actor system EventStream when a device's state changes (feeds SSE).</summary>
+public record DeviceStateChanged(string FriendlyName, string StateJson);

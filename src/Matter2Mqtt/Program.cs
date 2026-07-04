@@ -61,6 +61,10 @@ if (bool.TryParse(builder.Configuration["DevSeed"], out var devSeed) && devSeed)
 var app = builder.Build();
 app.UseMiddleware<ApiKeyMiddleware>();
 
+// Debug UI (wwwroot/index.html) served at /.
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 // Serve the authored contract and Swagger UI (both public — the API key only guards /api).
 var contractPath = Path.Combine(app.Environment.ContentRootPath, "openapi", "matter2mqtt.yaml");
 app.MapGet("/openapi/matter2mqtt.yaml", () => Results.File(contractPath, "application/yaml"));
@@ -72,6 +76,7 @@ app.UseSwaggerUI(c =>
 });
 
 app.MapControllers();
+app.MapDeviceEvents();
 app.Run();
 
 public partial class Program { }

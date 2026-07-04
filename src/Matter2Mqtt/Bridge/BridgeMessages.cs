@@ -11,3 +11,6 @@ public record SetDevice(string FriendlyName, IReadOnlyDictionary<string, JsonEle
 
 /// <summary>Signals the broker (re)connected — re-announce all retained bridge + device state.</summary>
 public record MqttConnected;
+
+/// <summary>Published on the EventStream when the device set changes (feeds SSE).</summary>
+public record DeviceListChanged;

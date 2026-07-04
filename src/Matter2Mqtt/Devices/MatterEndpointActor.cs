@@ -49,6 +49,7 @@ public sealed class MatterEndpointActor : ReceiveActor
             _state[k] = v;
         var json = JsonSerializer.Serialize(_state);
         _mqtt.PublishRetained(_topics.Device(_name), json);
+        Context.System.EventStream.Publish(new DeviceStateChanged(_name, json));
     }
 
     private async Task OnSet(ApplySet msg)
