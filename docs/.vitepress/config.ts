@@ -6,7 +6,11 @@ export default withLikeC4({ likec4: { source: './likec4', height: '460px' } }, d
   description: 'A neutral bridge that puts your Matter devices on MQTT — the Zigbee2MQTT of Matter.',
   base: '/matterhorn/',
   srcExclude: ['superpowers/**'],
+  head: [
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/matterhorn/logo.svg' }]
+  ],
   themeConfig: {
+    logo: '/logo.svg',
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'GitHub', link: 'https://github.com/dirnei/matterhorn' }

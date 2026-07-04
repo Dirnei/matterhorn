@@ -1,4 +1,14 @@
+<p align="center">
+  <img src="docs/public/logo.png" width="200" alt="Matterhorn logo" />
+</p>
+
 # Matterhorn
+
+[![Docs](https://img.shields.io/badge/docs-online-12508f)](https://dirnei.github.io/matterhorn/)
+[![Release](https://img.shields.io/github/v/release/dirnei/matterhorn?color=12508f&label=release)](https://github.com/dirnei/matterhorn/releases)
+[![Container](https://img.shields.io/badge/ghcr.io-matterhorn-2f7fc9)](https://github.com/dirnei/matterhorn/pkgs/container/matterhorn)
+[![Docs build](https://img.shields.io/github/actions/workflow/status/dirnei/matterhorn/docs.yml?label=docs%20build&color=4f7043)](https://github.com/dirnei/matterhorn/actions/workflows/docs.yml)
+[![.NET](https://img.shields.io/badge/.NET-10-12508f)](https://dotnet.microsoft.com)
 
 **A neutral bridge that puts your Matter devices on MQTT — the Zigbee2MQTT of Matter.**
 
