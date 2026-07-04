@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using Akka.TestKit.Xunit2;
 using Matter2Mqtt.Api;
 using Matter2Mqtt.Bridge;
+using Matter2Mqtt.Devices;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,5 +44,47 @@ public class ApiEndpointsTests : TestKit, IClassFixture<WebApplicationFactory<Pr
         probe.ExpectMsg<GetDevices>();
         probe.Reply((IReadOnlyList<DeviceDescriptor>)new List<DeviceDescriptor>());
         Assert.NotNull(await task);
+    }
+
+    [Fact]
+    public async Task Patch_device_forwards_SetDevice()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGateway(probe.Ref);
+
+        var task = client.PatchAsJsonAsync("/api/devices/lamp", new Dictionary<string, string> { ["state"] = "OFF" });
+
+        var msg = probe.ExpectMsg<SetDevice>();
+        Assert.Equal("lamp", msg.FriendlyName);
+        Assert.Equal("OFF", msg.Payload["state"].GetString());
+        Assert.Equal(HttpStatusCode.Accepted, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task Get_device_returns_state()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGateway(probe.Ref);
+
+        var task = client.GetAsync("/api/devices/lamp");
+
+        Assert.Equal("lamp", probe.ExpectMsg<GetDeviceState>().FriendlyName);
+        probe.Reply(new DeviceStateSnapshot(true, new Dictionary<string, object?> { ["state"] = "ON" }));
+
+        var resp = await task;
+        resp.EnsureSuccessStatusCode();
+        Assert.Contains("\"state\":\"ON\"", await resp.Content.ReadAsStringAsync());
+    }
+
+    private HttpClient ClientWithGateway(Akka.Actor.IActorRef gateway)
+    {
+        var client = _factory.WithWebHostBuilder(b =>
+            b.ConfigureServices(s =>
+            {
+                s.AddSingleton(new GatewayRef(gateway));
+                s.AddSingleton<IConfigureApiKey>(new StaticApiKey("secret"));
+            })).CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", "secret");
+        return client;
     }
 }

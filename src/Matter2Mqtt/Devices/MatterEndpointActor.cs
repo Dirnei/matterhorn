@@ -40,6 +40,7 @@ public sealed class MatterEndpointActor : ReceiveActor
                 _mqtt.PublishRetained(_topics.Device(_name), JsonSerializer.Serialize(_state));
             _mqtt.Publish(_topics.Availability(_name), "online");
         });
+        Receive<GetState>(_ => Sender.Tell(new DeviceStateSnapshot(true, new Dictionary<string, object?>(_state))));
     }
 
     private void OnAttribute(ApplyAttribute msg)

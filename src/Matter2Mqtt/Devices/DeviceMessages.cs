@@ -9,3 +9,7 @@ public record SetReachable(bool Reachable);
 
 /// <summary>Re-publish current retained state + availability (e.g. after an MQTT reconnect).</summary>
 public record Republish;
+
+/// <summary>Ask an endpoint for its current state; replied to with <see cref="DeviceStateSnapshot"/>.</summary>
+public record GetState;
+public record DeviceStateSnapshot(bool Found, IReadOnlyDictionary<string, object?>? State);

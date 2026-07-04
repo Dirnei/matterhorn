@@ -51,7 +51,11 @@ public sealed class MatterGatewayActor : ReceiveActor
         });
         Receive<MqttConnected>(_ => AnnounceAll());
         Receive<GetDevices>(_ => Sender.Tell((IReadOnlyList<DeviceDescriptor>)_byName.Values.Select(r => r.Descriptor).ToList()));
-        Receive<GetDeviceState>(g => Sender.Tell(new DeviceStateReply(_byName.ContainsKey(g.FriendlyName), null)));
+        Receive<GetDeviceState>(g =>
+        {
+            if (_byName.TryGetValue(g.FriendlyName, out var reg)) reg.Actor.Forward(new GetState());
+            else Sender.Tell(new DeviceStateSnapshot(false, null));
+        });
         ReceiveAsync<CommissionRequest>(OnCommission);
         ReceiveAsync<RemoveRequest>(OnRemove);
     }

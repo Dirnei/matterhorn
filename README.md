@@ -43,9 +43,10 @@ or with a CLI. Control a device identically over **MQTT or REST**:
 mqttx pub -h localhost -p 16883 -t 'matter2mqtt/essentials_bulb_1_1/set' -m '{"state":"OFF"}'
 mqttx pub -h localhost -p 16883 -t 'matter2mqtt/essentials_bulb_1_1/set/brightness' -m '120'
 
-# via REST (same effect)
-curl -X POST http://localhost:16090/api/devices/essentials_bulb_1_1/set \
+# via REST — PATCH applies a partial state change, GET reads current state
+curl -X PATCH http://localhost:16090/api/devices/essentials_bulb_1_1 \
   -H 'content-type: application/json' -d '{"state":"ON"}'
+curl http://localhost:16090/api/devices/essentials_bulb_1_1
 ```
 
 The retained `matter2mqtt/essentials_bulb_1_1` topic updates in response either way.
