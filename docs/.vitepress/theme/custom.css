@@ -1,0 +1,148 @@
+/**
+ * Matterhorn docs — themed to match the dashboard ("alpine bridge station").
+ * Tokens lifted verbatim from src/Matterhorn/wwwroot/index.html:
+ *   enzian (Bavarian gentian blue) = primary · loden (alpine green) = success
+ *   alpenglow (warm terracotta) = warning · cool blue-grey field + near-white surfaces.
+ * The app uses prefers-color-scheme; VitePress toggles a .dark class instead, so the
+ * app's light set maps to :root and its dark set to .dark.
+ */
+
+/* ---- Light (app's default scheme) -------------------------------------- */
+:root {
+  --mh-bg: #e7edf1;
+  --mh-surface: #fbfcfd;
+  --mh-surface2: #eef3f6;
+  --mh-ink: #1b2732;
+  --mh-muted: #63727f;
+  --mh-line: #cbd6dd;
+  --mh-enzian: #12508f;
+  --mh-enzian-bright: #2f7fc9;
+  --mh-loden: #4f7043;
+  --mh-alpenglow: #b1502d;
+  --mh-bav: #0a5ca8;
+
+  /* Type — the same deliberate system stacks the app ships (no web fonts). */
+  --vp-font-family-base: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --vp-font-family-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+
+  /* Brand = enzian */
+  --vp-c-brand-1: var(--mh-enzian);
+  --vp-c-brand-2: var(--mh-enzian-bright);
+  --vp-c-brand-3: var(--mh-enzian-bright);
+  --vp-c-brand-soft: rgba(18, 80, 143, 0.12);
+  --vp-c-brand-softer: rgba(18, 80, 143, 0.06);
+
+  /* Surfaces: near-white reading surface over the cool blue-grey field (as the app). */
+  --vp-c-bg: var(--mh-surface);
+  --vp-c-bg-alt: var(--mh-bg);
+  --vp-c-bg-soft: var(--mh-surface2);
+  --vp-c-bg-elv: var(--mh-surface);
+
+  --vp-c-text-1: var(--mh-ink);
+  --vp-c-text-2: var(--mh-muted);
+  --vp-c-text-3: #8595a1;
+
+  --vp-c-border: var(--mh-line);
+  --vp-c-divider: var(--mh-line);
+  --vp-c-gutter: var(--mh-line);
+
+  /* Brand buttons match the dashboard's solid enzian "Commission" button. */
+  --vp-button-brand-bg: var(--mh-enzian);
+  --vp-button-brand-hover-bg: var(--mh-enzian-bright);
+  --vp-button-brand-active-bg: var(--mh-bav);
+  --vp-button-brand-border: transparent;
+  --vp-button-brand-hover-border: transparent;
+  --vp-button-brand-active-border: transparent;
+  --vp-button-brand-text: #ffffff;
+  --vp-button-brand-hover-text: #ffffff;
+  --vp-button-brand-active-text: #ffffff;
+
+  /* Hero wordmark = enzian, echoing the MATTERHORN header mark. */
+  --vp-home-hero-name-color: var(--mh-enzian);
+
+  /* Callouts borrow the app's semantic pair: loden for good news, alpenglow for caution. */
+  --vp-c-tip-1: var(--mh-loden);
+  --vp-c-tip-soft: rgba(79, 112, 67, 0.12);
+  --vp-c-warning-1: var(--mh-alpenglow);
+  --vp-c-warning-soft: rgba(177, 80, 45, 0.12);
+  --vp-c-danger-1: var(--mh-alpenglow);
+  --vp-c-danger-soft: rgba(177, 80, 45, 0.12);
+}
+
+/* ---- Dark (app's prefers-color-scheme: dark set) ----------------------- */
+.dark {
+  --mh-bg: #0f151b;
+  --mh-surface: #161f28;
+  --mh-surface2: #1b2632;
+  --mh-ink: #e3ebf1;
+  --mh-muted: #8797a5;
+  --mh-line: #26313b;
+  --mh-enzian: #4f97d8;
+  --mh-enzian-bright: #6fb0e8;
+  --mh-loden: #7ba363;
+  --mh-alpenglow: #d9724b;
+  --mh-bav: #2f7fc9;
+
+  --vp-c-brand-soft: rgba(79, 151, 216, 0.16);
+  --vp-c-brand-softer: rgba(79, 151, 216, 0.08);
+
+  --vp-c-bg: var(--mh-surface);
+  --vp-c-bg-alt: var(--mh-bg);
+  --vp-c-bg-soft: var(--mh-surface2);
+  --vp-c-bg-elv: var(--mh-surface);
+
+  --vp-c-text-3: #6b7b89;
+
+  --vp-c-gutter: var(--mh-bg);
+
+  --vp-button-brand-active-bg: var(--mh-enzian);
+  --vp-home-hero-name-color: var(--mh-enzian-bright);
+
+  --vp-c-tip-soft: rgba(123, 163, 99, 0.16);
+  --vp-c-warning-soft: rgba(217, 114, 75, 0.16);
+  --vp-c-danger-soft: rgba(217, 114, 75, 0.16);
+}
+
+/* ===== Signatures ported from the dashboard ============================= */
+
+/* 1. Bavarian blue-and-white striped trim, pinned to the very top of the page.
+      The single most recognizable mark from the app; kept in both themes. */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 200;
+  pointer-events: none;
+  background: repeating-linear-gradient(90deg, var(--mh-bav) 0 16px, #ffffff 16px 32px);
+}
+
+/* 2. Home feature cards get the station card's 3px enzian top accent, so the
+      landing reads like the dashboard's device grid. */
+.VPFeatures .VPFeature {
+  position: relative;
+  overflow: hidden;
+}
+.VPFeatures .VPFeature::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--mh-enzian), var(--mh-enzian-bright));
+}
+
+/* 3. Hero tagline set in the mono face, echoing the app's
+      "matter → mqtt · alpine bridge station" station legend. */
+.VPHero .tagline {
+  font-family: var(--vp-font-family-mono);
+  font-size: 15px;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+}
+.VPHero .name .clip {
+  letter-spacing: 0.04em;
+}
