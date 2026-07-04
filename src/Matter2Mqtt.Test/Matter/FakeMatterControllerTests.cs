@@ -46,4 +46,24 @@ public class FakeMatterControllerTests
         var fake = new FakeMatterController { OnCommission = _ => 42 };
         Assert.Equal(42ul, await fake.Commission("MT:XXX", default));
     }
+
+    [Fact]
+    public async Task Echo_reflects_command_as_attribute_change()
+    {
+        var fake = new FakeMatterController { EchoCommandsAsAttributes = true };
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        MatterEvent? received = null;
+
+        var pump = Task.Run(async () =>
+        {
+            await foreach (var e in fake.ConnectAndListen(cts.Token)) { received = e; cts.Cancel(); break; }
+        });
+
+        await fake.InvokeCommand(1, 1, new CommandSpec(MatterClusters.OnOff, "Off", new Dictionary<string, object?>()), default);
+        try { await pump; } catch (OperationCanceledException) { }
+
+        var ac = Assert.IsType<AttributeChanged>(received);
+        Assert.Equal(MatterClusters.OnOff, ac.Reading.ClusterId);
+        Assert.False(ac.Reading.Value.GetBoolean());
+    }
 }

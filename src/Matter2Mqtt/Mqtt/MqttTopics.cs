@@ -24,4 +24,13 @@ public sealed class MqttTopics(string baseTopic)
         if (parts.Length == 3 && parts[1] == "set") { friendlyName = parts[0]; attr = parts[2]; return true; }
         return false;
     }
+
+    public bool TryParseRequest(string topic, out string action)
+    {
+        action = "";
+        var prefix = $"{Base}/bridge/request/";
+        if (!topic.StartsWith(prefix)) return false;
+        action = topic[prefix.Length..];
+        return action.Length > 0 && !action.Contains('/');
+    }
 }

@@ -34,6 +34,11 @@ public sealed class MatterGatewayActor : ReceiveActor
 
         Receive<NodeAdded>(OnNodeAdded);
         Receive<NodeRemoved>(OnNodeRemoved);
+        Receive<AttributeChanged>(ac =>
+        {
+            if (_byKey.TryGetValue((ac.Reading.NodeId, ac.Reading.Endpoint), out var reg))
+                reg.Actor.Tell(new ApplyAttribute(ac.Reading));
+        });
         Receive<ReachabilityChanged>(r =>
         {
             if (_byKey.TryGetValue((r.NodeId, r.Endpoint), out var reg))
@@ -43,6 +48,7 @@ public sealed class MatterGatewayActor : ReceiveActor
         {
             if (_byName.TryGetValue(s.FriendlyName, out var reg)) reg.Actor.Tell(new ApplySet(s.Payload));
         });
+        Receive<MqttConnected>(_ => AnnounceAll());
         Receive<GetDevices>(_ => Sender.Tell((IReadOnlyList<DeviceDescriptor>)_byName.Values.Select(r => r.Descriptor).ToList()));
         Receive<GetDeviceState>(g => Sender.Tell(new DeviceStateReply(_byName.ContainsKey(g.FriendlyName), null)));
         ReceiveAsync<CommissionRequest>(OnCommission);
@@ -51,9 +57,9 @@ public sealed class MatterGatewayActor : ReceiveActor
 
     protected override void PreStart()
     {
-        _mqtt.PublishRetained(_topics.BridgeState(), """{"state":"online"}""");
-        var (queue, _) = IngestionPipeline.Run(Context.System,
-            (n, e) => _byKey.TryGetValue((n, e), out var r) ? r.Actor : null, Self);
+        // bridge/state online + retained state are (re)published on MqttConnected, so they land
+        // reliably once the broker is actually connected (spec §4).
+        var (queue, _) = IngestionPipeline.Run(Context.System, Self);
         _queue = queue;
         // Pump the controller's event stream into the pipeline queue.
         _ = Task.Run(async () =>
@@ -111,6 +117,13 @@ public sealed class MatterGatewayActor : ReceiveActor
             await _controller.RemoveNode(reg.Info.NodeId, CancellationToken.None);
         await _mqtt.Publish(_topics.Base + "/bridge/response/remove",
             JsonSerializer.Serialize(new { transaction = req.Transaction, status = "ok" }));
+    }
+
+    private void AnnounceAll()
+    {
+        _mqtt.PublishRetained(_topics.BridgeState(), """{"state":"online"}""");
+        PublishDevices();
+        foreach (var reg in _byName.Values) reg.Actor.Tell(new Republish());
     }
 
     private void PublishDevices() =>

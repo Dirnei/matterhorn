@@ -1,0 +1,43 @@
+# Local test stack: EMQX broker + Matter2Mqtt running the in-memory (fake) controller with
+# demo devices seeded. Host ports are all in the 16000+ range to avoid clashing with defaults.
+#
+#   docker compose up --build
+#
+#   EMQX dashboard : http://localhost:16083   (admin / public)
+#   REST facade    : http://localhost:16090   (e.g. GET /api/devices)
+#   MQTT           : localhost:16883          (base topic: matter2mqtt)
+
+services:
+  emqx:
+    image: emqx:5
+    container_name: matter2mqtt-emqx
+    ports:
+      - "16883:1883"     # MQTT
+      - "16083:18083"    # dashboard UI (admin / public)
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx", "ctl", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [m2m]
+
+  matter2mqtt:
+    build: .
+    container_name: matter2mqtt
+    depends_on:
+      emqx:
+        condition: service_healthy
+    environment:
+      Controller__Kind: "fake"
+      DevSeed: "true"
+      Mqtt__Host: "emqx"
+      Mqtt__Port: "1883"
+      Mqtt__BaseTopic: "matter2mqtt"
+      ASPNETCORE_URLS: "http://+:8090"
+    ports:
+      - "16090:8090"     # REST + OpenAPI
+    networks: [m2m]
+
+networks:
+  m2m:
+    driver: bridge

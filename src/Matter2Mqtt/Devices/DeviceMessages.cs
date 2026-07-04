@@ -6,3 +6,6 @@ namespace Matter2Mqtt.Devices;
 public record ApplyAttribute(AttributeReading Reading);
 public record ApplySet(IReadOnlyDictionary<string, JsonElement> Payload);
 public record SetReachable(bool Reachable);
+
+/// <summary>Re-publish current retained state + availability (e.g. after an MQTT reconnect).</summary>
+public record Republish;

@@ -34,6 +34,12 @@ public sealed class MatterEndpointActor : ReceiveActor
         Receive<ApplyAttribute>(OnAttribute);
         ReceiveAsync<ApplySet>(OnSet);
         Receive<SetReachable>(r => _mqtt.Publish(_topics.Availability(_name), r.Reachable ? "online" : "offline"));
+        Receive<Republish>(_ =>
+        {
+            if (_state.Count > 0)
+                _mqtt.PublishRetained(_topics.Device(_name), JsonSerializer.Serialize(_state));
+            _mqtt.Publish(_topics.Availability(_name), "online");
+        });
     }
 
     private void OnAttribute(ApplyAttribute msg)
