@@ -51,4 +51,18 @@ public class PropertyMappingTests
         var props = PropertyMapping.Map(new[] { R(0x9999, 0, "1") });
         Assert.Empty(props);
     }
+
+    [Fact]
+    public void Maps_hue_saturation_and_color_mode()
+    {
+        var props = PropertyMapping.Map(new[]
+        {
+            R(MatterClusters.ColorControl, 0, "19"),
+            R(MatterClusters.ColorControl, 1, "58"),
+            R(MatterClusters.ColorControl, 8, "0"),
+        });
+        Assert.Equal(19, Assert.IsType<int>(props["hue"]));
+        Assert.Equal(58, Assert.IsType<int>(props["saturation"]));
+        Assert.Equal("hs", props["color_mode"]);
+    }
 }
