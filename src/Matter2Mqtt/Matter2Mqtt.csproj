@@ -15,6 +15,12 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.2.3" />
+  </ItemGroup>
+
+  <!-- Ship the authored contract with the app so Swagger UI serves the source-of-truth YAML. -->
+  <ItemGroup>
+    <Content Include="../../contracts/matter2mqtt.openapi.yaml" Link="openapi/matter2mqtt.yaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- Contract-first: generate the abstract API controllers + DTOs from the OpenAPI YAML on
@@ -22,9 +28,7 @@
   <Target Name="GenerateApiFromOpenApi" BeforeTargets="BeforeCompile;CoreCompile">
     <Exec Command="$(NSwagExe_Net100) run nswag.json" WorkingDirectory="$(MSBuildProjectDirectory)" />
     <ItemGroup>
-      <Compile Include="$(MSBuildProjectDirectory)/obj/generated/ApiContract.g.cs"
-               Condition="Exists('$(MSBuildProjectDirectory)/obj/generated/ApiContract.g.cs')"
-               KeepDuplicates="false" />
+      <Compile Include="$(MSBuildProjectDirectory)/obj/generated/ApiContract.g.cs" Condition="Exists('$(MSBuildProjectDirectory)/obj/generated/ApiContract.g.cs')" KeepDuplicates="false" />
     </ItemGroup>
   </Target>
 

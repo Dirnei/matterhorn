@@ -14,7 +14,8 @@ public sealed class ApiKeyMiddleware(RequestDelegate next, IConfigureApiKey key)
 {
     public async Task Invoke(HttpContext ctx)
     {
-        if (key.ApiKey is { Length: > 0 } expected)
+        // Only the API surface is protected; docs (/swagger, /openapi) stay public.
+        if (ctx.Request.Path.StartsWithSegments("/api") && key.ApiKey is { Length: > 0 } expected)
         {
             var provided = ctx.Request.Headers["X-Api-Key"].ToString();
             if (provided != expected) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }

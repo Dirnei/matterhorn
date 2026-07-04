@@ -60,6 +60,9 @@ base + DTOs into `obj/` (not committed); `Api/Matter2MqttController.cs` implemen
 the actor model and maps the internal domain records to the generated wire DTOs. To change the API:
 edit the YAML, rebuild, implement any new operations.
 
+**Swagger UI** browses that same contract at **http://localhost:16090/swagger** (the raw YAML is at
+`/openapi/matter2mqtt.yaml`). Docs are public; the API key, when set, only guards `/api/*`.
+
 ## Configuration
 
 | Env / key | Purpose | Default |
