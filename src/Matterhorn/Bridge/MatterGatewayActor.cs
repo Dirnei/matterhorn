@@ -22,6 +22,9 @@ public sealed class MatterGatewayActor : ReceiveActor
     private readonly MqttTopics _topics;
 
     private sealed record Registered(string FriendlyName, EndpointInfo Info, IActorRef Actor, DeviceDescriptor Descriptor);
+    // Self-addressed results of the off-actor controller calls, so the actor never blocks on them.
+    private sealed record CommissionDone(string Transaction, ulong? NodeId, string? Error);
+    private sealed record RemoveDone(string Transaction, string? Error);
     private readonly Dictionary<(ulong, ushort), Registered> _byKey = new();
     private readonly Dictionary<string, Registered> _byName = new();
     private ISourceQueueWithComplete<MatterEvent>? _queue;
@@ -40,11 +43,7 @@ public sealed class MatterGatewayActor : ReceiveActor
             if (_byKey.TryGetValue((ac.Reading.NodeId, ac.Reading.Endpoint), out var reg))
                 reg.Actor.Tell(new ApplyAttribute(ac.Reading));
         });
-        Receive<ReachabilityChanged>(r =>
-        {
-            if (_byKey.TryGetValue((r.NodeId, r.Endpoint), out var reg))
-                reg.Actor.Tell(new SetReachable(r.Reachable));
-        });
+        Receive<ReachabilityChanged>(OnReachabilityChanged);
         Receive<SetDevice>(s =>
         {
             if (_byName.TryGetValue(s.FriendlyName, out var reg)) reg.Actor.Tell(new ApplySet(s.Payload));
@@ -56,8 +55,10 @@ public sealed class MatterGatewayActor : ReceiveActor
             if (_byName.TryGetValue(g.FriendlyName, out var reg)) reg.Actor.Forward(new GetState());
             else Sender.Tell(new DeviceStateSnapshot(false, null));
         });
-        ReceiveAsync<CommissionRequest>(OnCommission);
-        ReceiveAsync<RemoveRequest>(OnRemove);
+        Receive<CommissionRequest>(OnCommission);
+        Receive<CommissionDone>(OnCommissionDone);
+        Receive<RemoveRequest>(OnRemove);
+        Receive<RemoveDone>(OnRemoveDone);
     }
 
     protected override void PreStart()
@@ -94,34 +95,62 @@ public sealed class MatterGatewayActor : ReceiveActor
 
     private void OnNodeRemoved(NodeRemoved msg)
     {
-        if (!_byKey.Remove((msg.NodeId, msg.Endpoint), out var reg)) return;
-        _byName.Remove(reg.FriendlyName);
-        Context.Stop(reg.Actor);
+        // node_removed carries only the node id, so drop every endpoint registered under that node.
+        var keys = _byKey.Keys.Where(k => k.Item1 == msg.NodeId).ToList();
+        if (keys.Count == 0) return;
+        foreach (var key in keys)
+        {
+            if (!_byKey.Remove(key, out var reg)) continue;
+            _byName.Remove(reg.FriendlyName);
+            Context.Stop(reg.Actor);
+            PublishEvent("device_leave", new { friendly_name = reg.FriendlyName });
+        }
         PublishDevices();
-        PublishEvent("device_leave", new { friendly_name = reg.FriendlyName });
     }
 
-    private async Task OnCommission(CommissionRequest req)
-    {
-        try
-        {
-            var nodeId = await _controller.Commission(req.Code, CancellationToken.None);
-            await _mqtt.Publish(_topics.Base + "/bridge/response/commission",
-                JsonSerializer.Serialize(new { transaction = req.Transaction, status = "ok", node_id = nodeId.ToString(), error = (string?)null }));
-        }
-        catch (Exception ex)
-        {
-            await _mqtt.Publish(_topics.Base + "/bridge/response/commission",
-                JsonSerializer.Serialize(new { transaction = req.Transaction, status = "error", node_id = (string?)null, error = ex.Message }));
-        }
-    }
+    // Commissioning can take 30-60s. Run it off the actor and pipe the outcome back as CommissionDone
+    // so the gateway keeps serving device queries and attribute routing while it's in flight.
+    private void OnCommission(CommissionRequest req) =>
+        _controller.Commission(req.Code, CancellationToken.None).ContinueWith(t => t.IsFaulted
+            ? new CommissionDone(req.Transaction, null, t.Exception!.GetBaseException().Message)
+            : new CommissionDone(req.Transaction, t.Result, null)).PipeTo(Self);
 
-    private async Task OnRemove(RemoveRequest req)
+    private void OnCommissionDone(CommissionDone done) =>
+        _mqtt.Publish(_topics.Base + "/bridge/response/commission", JsonSerializer.Serialize(new
+        {
+            transaction = done.Transaction,
+            status = done.Error is null ? "ok" : "error",
+            node_id = done.NodeId?.ToString(),
+            error = done.Error,
+        }));
+
+    private void OnRemove(RemoveRequest req)
     {
         if (_byName.TryGetValue(req.FriendlyName, out var reg))
-            await _controller.RemoveNode(reg.Info.NodeId, CancellationToken.None);
-        await _mqtt.Publish(_topics.Base + "/bridge/response/remove",
-            JsonSerializer.Serialize(new { transaction = req.Transaction, status = "ok" }));
+            _controller.RemoveNode(reg.Info.NodeId, CancellationToken.None).ContinueWith(t =>
+                new RemoveDone(req.Transaction, t.IsFaulted ? t.Exception!.GetBaseException().Message : null)).PipeTo(Self);
+        else
+            Self.Tell(new RemoveDone(req.Transaction, null));
+    }
+
+    private void OnRemoveDone(RemoveDone done) =>
+        _mqtt.Publish(_topics.Base + "/bridge/response/remove", JsonSerializer.Serialize(new
+        {
+            transaction = done.Transaction,
+            status = done.Error is null ? "ok" : "error",
+            error = done.Error,
+        }));
+
+    private void OnReachabilityChanged(ReachabilityChanged r)
+    {
+        if (!_byKey.TryGetValue((r.NodeId, r.Endpoint), out var reg)) return;
+        reg.Actor.Tell(new SetReachable(r.Reachable));
+        if (reg.Descriptor.Reachable == r.Reachable) return;
+        // Reflect it in the discovery model so REST/dashboard and bridge/devices show the live state.
+        var updated = reg with { Descriptor = reg.Descriptor with { Reachable = r.Reachable } };
+        _byKey[(r.NodeId, r.Endpoint)] = updated;
+        _byName[reg.FriendlyName] = updated;
+        PublishDevices();
     }
 
     private void AnnounceAll()

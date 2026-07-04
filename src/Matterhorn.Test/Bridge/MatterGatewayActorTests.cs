@@ -99,6 +99,58 @@ public class MatterGatewayActorTests : TestKit
     }
 
     [Fact]
+    public void Gateway_stays_responsive_while_a_commission_is_in_flight()
+    {
+        // Regression: OnCommission must not block the actor for the whole (30-60s) commission,
+        // or GetDevices/attribute routing stall. A pending commission is held open while we Ask.
+        var pending = new TaskCompletionSource<ulong>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var fake = new FakeMatterController { PendingCommission = pending.Task };
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, new InMemoryMqttPublisher(), new MqttTopics("matterhorn")));
+        fake.Emit(new NodeAdded(Light(1)));
+        AwaitAssert(() => Assert.Single(gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result));
+
+        gw.Tell(new CommissionRequest("MT:XXX", "tx1"));
+
+        // Must answer well within the Ask timeout even though the commission has not completed.
+        var devices = gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices(), TimeSpan.FromSeconds(2)).Result;
+        Assert.Single(devices);
+        pending.SetResult(99); // let the commission finish so nothing dangles
+    }
+
+    [Fact]
+    public void ReachabilityChanged_updates_the_descriptor_and_republishes()
+    {
+        var fake = new FakeMatterController();
+        var mqtt = new InMemoryMqttPublisher();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, mqtt, new MqttTopics("matterhorn")));
+        // Joins unreachable (as our bulb did mid-interview).
+        fake.Emit(new NodeAdded(new EndpointInfo(1, 1, "Nanoleaf", "Bulb", 4442, 3, "Dimmable Light", false,
+            new[] { MatterClusters.OnOff, MatterClusters.LevelControl })));
+        AwaitAssert(() => Assert.False(gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result[0].Reachable));
+
+        fake.Emit(new ReachabilityChanged(1, 1, true));
+
+        AwaitAssert(() => Assert.True(gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result[0].Reachable));
+    }
+
+    [Fact]
+    public void NodeRemoved_drops_every_endpoint_of_the_node()
+    {
+        var fake = new FakeMatterController();
+        var mqtt = new InMemoryMqttPublisher();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, mqtt, new MqttTopics("matterhorn")));
+
+        fake.Emit(new NodeAdded(Light(7)));
+        fake.Emit(new NodeAdded(new EndpointInfo(7, 2, "Nanoleaf", "Sensor", 4442, 3, "OccupancySensor", true,
+            new[] { MatterClusters.OccupancySensing })));
+        AwaitAssert(() => Assert.Equal(2, gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result.Count));
+
+        fake.Emit(new NodeRemoved(7));
+
+        AwaitAssert(() => Assert.Empty(gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result));
+    }
+
+    [Fact]
     public void MqttConnected_reannounces_bridge_state_and_devices()
     {
         var fake = new FakeMatterController();

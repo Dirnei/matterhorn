@@ -203,8 +203,14 @@ function control(name,e){
         <span class="readout" data-prop="${e.property}-val">—</span></div>
       <input type="range" min="${min}" max="${max}" data-prop="${e.property}">`;
     const s=wrap.querySelector('input');
+    // Suppress live updates only while actively dragging — a range input keeps focus after you
+    // release it, so guarding on focus alone would freeze the slider until you clicked elsewhere.
+    const startDrag=()=>s.dataset.dragging='1', endDrag=()=>delete s.dataset.dragging;
+    s.addEventListener('pointerdown',startDrag);
+    s.addEventListener('pointerup',endDrag);
+    s.addEventListener('pointercancel',endDrag);
     s.addEventListener('input',()=>wrap.querySelector('[data-prop$="-val"]').textContent=s.value);
-    s.addEventListener('change',()=>patch(name,{[e.property]:Number(s.value)}));
+    s.addEventListener('change',()=>{ endDrag(); patch(name,{[e.property]:Number(s.value)}); });
   }
   return wrap;
 }
@@ -223,7 +229,7 @@ function applyState(name){
     const t=el.querySelector(`input[type=checkbox][data-prop="${prop}"]`);
     if (t){ t.checked=String(val).toUpperCase()==='ON'; continue; }
     const sl=el.querySelector(`input[type=range][data-prop="${prop}"]`);
-    if (sl){ if(document.activeElement!==sl) sl.value=val; const lbl=el.querySelector(`[data-prop="${prop}-val"]`); if(lbl) lbl.textContent=val; continue; }
+    if (sl){ if(sl.dataset.dragging!=='1'){ sl.value=val; const lbl=el.querySelector(`[data-prop="${prop}-val"]`); if(lbl) lbl.textContent=val; } continue; }
     const ro=el.querySelector(`.readout[data-prop="${prop}"]`);
     if (ro) ro.firstChild.textContent=fmt(val);
   }

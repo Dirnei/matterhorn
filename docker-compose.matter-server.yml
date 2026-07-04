@@ -1,0 +1,38 @@
+# python-matter-server — the real Matter controller Matterhorn talks to.
+#
+# Run this ON THE PI (or any Linux host on the same LAN as your bulb). It MUST use host
+# networking: Matter commissioning needs mDNS + IPv6 link-local access to the device, which a
+# Docker bridge network cannot provide. This is why it can't run under Docker Desktop on
+# Windows/Mac — only a real Linux host works.
+#
+#   On the Pi:
+#     docker compose -f docker-compose.matter-server.yml up -d
+#     docker compose -f docker-compose.matter-server.yml logs -f    # watch commissioning
+#
+#   Then point Matterhorn at it (from your Windows dev box, same LAN):
+#     Controller__WsUrl=ws://<pi-ip>:5580/ws dotnet run --project src/Matterhorn
+#   (Controller__Kind already defaults to python-matter-server.)
+#
+# Requirements on the Pi:
+#   - 64-bit OS (arm64). The image has no 32-bit build.
+#   - IPv6 enabled on the host — Matter is IPv6-only on the operational network.
+
+name: matter-server
+
+services:
+  matter-server:
+    # Established image path. If this fails to pull, the project also publishes at
+    # ghcr.io/matter-js/python-matter-server:stable — switch the org and retry.
+    image: ghcr.io/home-assistant-libs/python-matter-server:stable
+    container_name: matter-server
+    restart: unless-stopped
+    # Required for mDNS/IPv6 commissioning. Linux host only; binds the WS API on host :5580.
+    network_mode: host
+    security_opt:
+      - apparmor=unconfined
+    volumes:
+      - matter-data:/data          # fabric credentials + node database (persist across restarts)
+      - /run/dbus:/run/dbus:ro      # only needed for Bluetooth commissioning; harmless otherwise
+
+volumes:
+  matter-data:

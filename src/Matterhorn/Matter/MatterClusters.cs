@@ -12,4 +12,8 @@ public static class MatterClusters
     public const uint RelativeHumidityMeasurement = 0x0405;
     public const uint IlluminanceMeasurement = 0x0400;
     public const uint PowerSource = 0x002F;
+
+    // Utility clusters read during node interview parsing.
+    public const uint BasicInformation = 0x0028;
+    public const uint Descriptor = 0x001D;
 }

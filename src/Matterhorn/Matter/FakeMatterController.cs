@@ -15,6 +15,11 @@ public sealed class FakeMatterController : IMatterController
     public Func<string, ulong> OnCommission { get; set; } = _ => 1;
     public List<ulong> Removed { get; } = new();
 
+    /// <summary>When set, <see cref="Commission"/> returns this (still-pending) task instead of
+    /// completing synchronously — lets a test hold a commission in flight to prove the gateway
+    /// stays responsive while it runs.</summary>
+    public Task<ulong>? PendingCommission { get; set; }
+
     /// <summary>
     /// When true, an invoked command is reflected back as the attribute change a real device would
     /// report (optimistic echo) — so a <c>/set</c> visibly updates retained state. Off by default.
@@ -63,6 +68,7 @@ public sealed class FakeMatterController : IMatterController
         return list;
     }
 
-    public Task<ulong> Commission(string setupCode, CancellationToken ct) => Task.FromResult(OnCommission(setupCode));
+    public Task<ulong> Commission(string setupCode, CancellationToken ct) =>
+        PendingCommission ?? Task.FromResult(OnCommission(setupCode));
     public Task RemoveNode(ulong nodeId, CancellationToken ct) { Removed.Add(nodeId); return Task.CompletedTask; }
 }
