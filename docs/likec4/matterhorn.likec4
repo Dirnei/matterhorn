@@ -1,0 +1,67 @@
+// Matterhorn architecture — the C4 model behind the "How it works" diagram.
+// Element kinds are coloured to echo the dashboard: enzian-blue for the bridge,
+// loden-green for the outward surfaces.
+specification {
+  element device {
+    style {
+      shape mobile
+      color muted
+    }
+  }
+  element controller {
+    style {
+      color sky
+    }
+  }
+  element bridge {
+    style {
+      color blue
+    }
+  }
+  element surface {
+    style {
+      color green
+    }
+  }
+  element broker {
+    style {
+      shape cylinder
+      color green
+    }
+  }
+}
+
+model {
+  matterDevice = device 'Matter device' {
+    description 'A Wi-Fi or Thread device — bulb, sensor, plug'
+  }
+  matterServer = controller 'matterjs-server' {
+    description 'Speaks Matter/IP; does commissioning and low-level work'
+  }
+  matterhorn = bridge 'Matterhorn' {
+    description 'Neutral bridge — one internal model, many projections'
+  }
+  mqtt = broker 'MQTT broker' {
+    description 'Retained per-device state and /set control'
+  }
+  rest = surface 'REST API' {
+    description 'OpenAPI GET/PATCH /api/devices'
+  }
+  dashboard = surface 'Web dashboard' {
+    description 'Live device cards over Server-Sent Events'
+  }
+
+  matterDevice -> matterServer 'Matter / IP'
+  matterServer -> matterhorn 'WebSocket'
+  matterhorn -> mqtt 'MQTT'
+  matterhorn -> rest 'HTTP'
+  matterhorn -> dashboard 'SSE'
+}
+
+views {
+  view index {
+    title 'From device to MQTT, REST & dashboard'
+    include *
+    autoLayout LeftRight
+  }
+}

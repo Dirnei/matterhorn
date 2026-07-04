@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress'
+import { withLikeC4 } from '@leberkas-org/vitepress-likec4'
 
-export default defineConfig({
+export default withLikeC4({ likec4: { source: './likec4', height: '460px' } }, defineConfig({
   title: 'Matterhorn',
   description: 'A neutral bridge that puts your Matter devices on MQTT — the Zigbee2MQTT of Matter.',
   base: '/matterhorn/',
@@ -30,4 +31,4 @@ export default defineConfig({
       ]
     }
   }
-})
+}))

@@ -20,6 +20,8 @@
   --mh-loden: #4f7043;
   --mh-alpenglow: #b1502d;
   --mh-bav: #0a5ca8;
+  /* The cool field below the horizon — the app's page backdrop. */
+  --mh-ground: #e7edf1;
 
   /* Type — the same deliberate system stacks the app ships (no web fonts). */
   --vp-font-family-base: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -82,6 +84,7 @@
   --mh-loden: #7ba363;
   --mh-alpenglow: #d9724b;
   --mh-bav: #2f7fc9;
+  --mh-ground: #0f151b;
 
   --vp-c-brand-soft: rgba(79, 151, 216, 0.16);
   --vp-c-brand-softer: rgba(79, 151, 216, 0.08);
@@ -145,4 +148,48 @@ body::before {
 }
 .VPHero .name .clip {
   letter-spacing: 0.04em;
+}
+
+/* 4. The landing reads as an alpine horizon: the surface "sky" above the ridge,
+      the cool field as "ground" below it — the dashboard's surface-over-field.
+      The whole home sits on the field; the hero paints sky down to the ridge. */
+.VPContent.is-home,
+.VPHome {
+  background: var(--mh-ground);
+}
+.VPHome .VPHero {
+  background: var(--vp-c-bg);
+  padding-bottom: 24px;
+}
+
+/* The ridge band's own background is sky, so the silhouette (filled in the
+   ground colour, see Ridgeline.vue) rises out of it and melts into the field
+   below. Full-bleed like the dashboard header; the outline strokes in on load. */
+.mh-ridge {
+  display: block;
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 116px;
+  margin: 0;
+  background: var(--vp-c-bg);
+  pointer-events: none;
+  margin-bottom: 40px;
+}
+.mh-ridge-line {
+  stroke-dasharray: 2600;
+  stroke-dashoffset: 2600;
+  animation: mh-ridge-draw 2.2s cubic-bezier(0.22, 0.61, 0.36, 1) 0.25s forwards;
+}
+@keyframes mh-ridge-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mh-ridge-line {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
 }

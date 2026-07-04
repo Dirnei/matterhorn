@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Matterhorn
   text: Your Matter devices on MQTT
-  tagline: A neutral bridge — the Zigbee2MQTT of Matter. MQTT, REST, and a web dashboard over one internal model.
+  tagline: Because the only thing that matters is to keep your data on your own infrastructure.
   actions:
     - theme: brand
       text: Get Started

@@ -1,10 +1,6 @@
 # How it works
 
-```
-Matter device ──(Matter/IP)── matterjs-server ──(WebSocket)── Matterhorn ──┬── MQTT broker
-                                                                           ├── REST API
-                                                                           └── Web dashboard (SSE)
-```
+<likec4-view view-id="index"></likec4-view>
 
 Matterhorn does **not** speak Matter to devices directly. It drives a
 [matterjs-server](https://github.com/matter-js/matterjs-server) instance, which does the
