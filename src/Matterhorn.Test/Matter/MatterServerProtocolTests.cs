@@ -207,4 +207,32 @@ public class MatterServerProtocolTests
         var evt = Assert.Single(MatterServerProtocol.ParseNodeList(json));
         Assert.Equal(42ul, Assert.IsType<NodeAdded>(evt).Endpoint.NodeId);
     }
+
+    [Fact]
+    public void ParseNode_reads_wifi_transport_and_color_features()
+    {
+        var json = """
+        {"event":"node_added","data":{"node_id":1,"available":true,"attributes":{
+            "0/49/65532":1,
+            "1/29/1":[6,8,768],"1/768/65532":25
+        }}}
+        """;
+        var info = Assert.IsType<NodeAdded>(Assert.Single(MatterServerProtocol.ParseIncoming(json))).Endpoint;
+        Assert.Equal("wifi", info.Transport);
+        Assert.Equal(25u, info.ColorFeatures);
+    }
+
+    [Theory]
+    [InlineData(1, "wifi")]
+    [InlineData(2, "thread")]
+    [InlineData(4, "ethernet")]
+    [InlineData(3, "thread")]   // Thread wins when both bits set
+    [InlineData(0, "unknown")]
+    public void ParseNode_decodes_transport_from_network_commissioning(int featureMap, string expected)
+    {
+        var json = "{\"event\":\"node_added\",\"data\":{\"node_id\":1,\"available\":true,\"attributes\":{"
+                 + "\"0/49/65532\":" + featureMap + ",\"1/29/1\":[6]}}}";
+        var info = Assert.IsType<NodeAdded>(Assert.Single(MatterServerProtocol.ParseIncoming(json))).Endpoint;
+        Assert.Equal(expected, info.Transport);
+    }
 }

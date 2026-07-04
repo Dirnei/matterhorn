@@ -16,4 +16,5 @@ public static class MatterClusters
     // Utility clusters read during node interview parsing.
     public const uint BasicInformation = 0x0028;
     public const uint Descriptor = 0x001D;
+    public const uint NetworkCommissioning = 0x0031;
 }

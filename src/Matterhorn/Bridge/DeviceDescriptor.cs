@@ -4,7 +4,7 @@ namespace Matterhorn.Bridge;
 public record EndpointInfo(
     ulong NodeId, ushort Endpoint, string? VendorName, string? ProductName,
     ushort VendorId, ushort ProductId, string DeviceType, bool Reachable,
-    IReadOnlyList<uint> ClusterIds);
+    IReadOnlyList<uint> ClusterIds, string Transport = "unknown", uint ColorFeatures = 0);
 
 /// <summary>A Z2M-style exposes entry. <see cref="Access"/> is a bitmask (1=published, 2=set, 4=get).</summary>
 public record ExposeEntry(
@@ -16,4 +16,4 @@ public record ExposeEntry(
 public record DeviceDescriptor(
     string FriendlyName, string NodeId, ushort Endpoint,
     string? VendorName, string? ProductName, ushort VendorId, ushort ProductId,
-    string DeviceType, bool Reachable, IReadOnlyList<ExposeEntry> Exposes);
+    string DeviceType, bool Reachable, IReadOnlyList<ExposeEntry> Exposes, string Transport = "unknown");

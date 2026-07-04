@@ -147,8 +147,10 @@ public static class MatterServerProtocol
 
         string? vendorName = null, productName = null;
         ushort vendorId = 0, productId = 0;
+        var transport = "unknown";
         var serverLists = new Dictionary<ushort, List<uint>>();
         var deviceTypes = new Dictionary<ushort, uint>();
+        var colorFeatures = new Dictionary<ushort, uint>();
 
         foreach (var attr in attrs.EnumerateObject())
         {
@@ -175,13 +177,20 @@ public static class MatterServerProtocol
                 else if (attribute == 0 && TryReadDeviceType(attr.Value, out var dt))  // DeviceTypeList
                     deviceTypes[ep] = dt;
             }
+            else if (ep == 0 && cluster == MatterClusters.NetworkCommissioning && attribute == 0xFFFC
+                     && attr.Value.ValueKind == JsonValueKind.Number && attr.Value.TryGetUInt32(out var netFm))
+                transport = DecodeTransport(netFm);
+            else if (cluster == MatterClusters.ColorControl && attribute == 0xFFFC
+                     && attr.Value.ValueKind == JsonValueKind.Number && attr.Value.TryGetUInt32(out var colFm))
+                colorFeatures[ep] = colFm;
         }
 
         foreach (var (ep, clusters) in serverLists)
         {
             var type = deviceTypes.TryGetValue(ep, out var dt) ? DeviceTypeName(dt) : "Unknown";
             yield return new NodeAdded(new EndpointInfo(
-                nodeId, ep, vendorName, productName, vendorId, productId, type, reachable, clusters));
+                nodeId, ep, vendorName, productName, vendorId, productId, type, reachable, clusters,
+                transport, colorFeatures.GetValueOrDefault(ep)));
         }
     }
 
@@ -215,6 +224,12 @@ public static class MatterServerProtocol
         }
         return false;
     }
+
+    private static string DecodeTransport(uint featureMap) =>
+        (featureMap & 0x02) != 0 ? "thread"
+        : (featureMap & 0x01) != 0 ? "wifi"
+        : (featureMap & 0x04) != 0 ? "ethernet"
+        : "unknown";
 
     private static string DeviceTypeName(uint deviceType) => deviceType switch
     {
