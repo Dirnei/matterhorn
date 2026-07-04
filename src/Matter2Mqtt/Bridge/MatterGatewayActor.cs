@@ -2,6 +2,7 @@ using System.Text.Json;
 using Akka.Actor;
 using Akka.Event;
 using Akka.Streams;
+using Matter2Mqtt.Configuration;
 using Matter2Mqtt.Devices;
 using Matter2Mqtt.Matter;
 using Matter2Mqtt.Mqtt;
@@ -127,7 +128,8 @@ public sealed class MatterGatewayActor : ReceiveActor
     }
 
     private void PublishDevices() =>
-        _mqtt.PublishRetained(_topics.BridgeDevices(), JsonSerializer.Serialize(_byName.Values.Select(r => r.Descriptor)));
+        _mqtt.PublishRetained(_topics.BridgeDevices(),
+            JsonSerializer.Serialize(_byName.Values.Select(r => r.Descriptor), JsonDefaults.SnakeCase));
 
     private void PublishEvent(string type, object data) =>
         _mqtt.Publish(_topics.BridgeEvent(), JsonSerializer.Serialize(new { type, data }));

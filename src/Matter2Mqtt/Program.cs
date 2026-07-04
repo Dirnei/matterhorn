@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Akka.Actor;
 using Akka.Hosting;
 using HiveMQtt.Client;
@@ -31,6 +33,13 @@ builder.Services.AddSingleton(mqttClient);
 builder.Services.AddSingleton(controller);
 builder.Services.AddSingleton<IMqttPublisher, HiveMqttPublisher>();
 builder.Services.AddSingleton<IConfigureApiKey>(new StaticApiKey(cfg.ApiKey));
+
+// REST shares the MQTT JSON shape (snake_case, null fields omitted) so the two surfaces match.
+builder.Services.ConfigureHttpJsonOptions(o =>
+{
+    o.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower;
+    o.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+});
 
 builder.Services.AddAkka("matter2mqtt", (b, sp) => b
     .WithActors((system, registry) =>

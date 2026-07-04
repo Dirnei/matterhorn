@@ -32,6 +32,25 @@ public class MatterGatewayActorTests : TestKit
     }
 
     [Fact]
+    public void Bridge_devices_payload_is_snake_case()
+    {
+        var fake = new FakeMatterController();
+        var mqtt = new InMemoryMqttPublisher();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, mqtt, new MqttTopics("matter2mqtt")));
+
+        fake.Emit(new NodeAdded(Light(1)));
+
+        AwaitAssert(() =>
+        {
+            var msg = Assert.Single(mqtt.Messages, m => m.Topic == "matter2mqtt/bridge/devices");
+            Assert.Contains("\"friendly_name\":\"bulb_1_1\"", msg.Payload);
+            Assert.Contains("\"value_on\":\"ON\"", msg.Payload);
+            Assert.DoesNotContain("FriendlyName", msg.Payload);
+            Assert.DoesNotContain("\"value_on\":null", msg.Payload); // null fields omitted
+        });
+    }
+
+    [Fact]
     public void SetDevice_routes_to_endpoint_and_invokes_controller()
     {
         var fake = new FakeMatterController();
