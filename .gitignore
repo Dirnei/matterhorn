@@ -1,3 +1,6 @@
+# Git worktrees (isolated workspaces) — never track their contents
+.worktrees/
+
 # Local environment overrides (compose config, secrets) — keep out of git
 .env
 
