@@ -1,24 +1,24 @@
 using System.Net;
 using System.Net.Http.Json;
+using Akka.Actor;
 using Akka.TestKit.Xunit2;
 using Matter2Mqtt.Api;
 using Matter2Mqtt.Bridge;
 using Matter2Mqtt.Devices;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Matter2Mqtt.Test.Api;
 
-public class ApiEndpointsTests : TestKit, IClassFixture<WebApplicationFactory<Program>>
+public class Matter2MqttControllerTests : TestKit, IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly WebApplicationFactory<Program> _factory;
-    public ApiEndpointsTests(WebApplicationFactory<Program> factory) => _factory = factory;
+    public Matter2MqttControllerTests(WebApplicationFactory<Program> factory) => _factory = factory;
 
     [Fact]
-    public async Task Get_devices_requires_api_key()
+    public async Task List_devices_requires_api_key()
     {
-        // A key is configured, but the request omits it -> 401 (rejected before the gateway).
         var client = _factory
             .WithWebHostBuilder(b => b.UseSetting("Rest:ApiKey", "secret"))
             .CreateClient();
@@ -28,22 +28,18 @@ public class ApiEndpointsTests : TestKit, IClassFixture<WebApplicationFactory<Pr
     }
 
     [Fact]
-    public async Task Get_devices_returns_gateway_list_with_valid_key()
+    public async Task List_devices_returns_gateway_list_with_valid_key()
     {
         var probe = CreateTestProbe();
-        var client = _factory.WithWebHostBuilder(b =>
-            b.ConfigureServices(s =>
-            {
-                s.AddSingleton(new GatewayRef(probe.Ref));
-                s.AddSingleton<IConfigureApiKey>(new StaticApiKey("secret"));
-            })).CreateClient();
+        var client = ClientWithGateway(probe.Ref);
 
-        client.DefaultRequestHeaders.Add("X-Api-Key", "secret");
-        var task = client.GetFromJsonAsync<List<DeviceDescriptor>>("/api/devices");
-
+        var task = client.GetAsync("/api/devices");
         probe.ExpectMsg<GetDevices>();
         probe.Reply((IReadOnlyList<DeviceDescriptor>)new List<DeviceDescriptor>());
-        Assert.NotNull(await task);
+
+        var resp = await task;
+        resp.EnsureSuccessStatusCode();
+        Assert.Equal("[]", await resp.Content.ReadAsStringAsync());
     }
 
     [Fact]
@@ -61,22 +57,36 @@ public class ApiEndpointsTests : TestKit, IClassFixture<WebApplicationFactory<Pr
     }
 
     [Fact]
-    public async Task Get_device_returns_state()
+    public async Task Get_device_returns_snake_case_state()
     {
         var probe = CreateTestProbe();
         var client = ClientWithGateway(probe.Ref);
 
         var task = client.GetAsync("/api/devices/lamp");
-
         Assert.Equal("lamp", probe.ExpectMsg<GetDeviceState>().FriendlyName);
-        probe.Reply(new DeviceStateSnapshot(true, new Dictionary<string, object?> { ["state"] = "ON" }));
+        probe.Reply(new DeviceStateSnapshot(true, new Dictionary<string, object?> { ["state"] = "ON", ["brightness"] = 128 }));
 
         var resp = await task;
         resp.EnsureSuccessStatusCode();
-        Assert.Contains("\"state\":\"ON\"", await resp.Content.ReadAsStringAsync());
+        var body = await resp.Content.ReadAsStringAsync();
+        Assert.Contains("\"state\":\"ON\"", body);
+        Assert.Contains("\"brightness\":128", body);
     }
 
-    private HttpClient ClientWithGateway(Akka.Actor.IActorRef gateway)
+    [Fact]
+    public async Task Get_missing_device_returns_404()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGateway(probe.Ref);
+
+        var task = client.GetAsync("/api/devices/nope");
+        probe.ExpectMsg<GetDeviceState>();
+        probe.Reply(new DeviceStateSnapshot(false, null));
+
+        Assert.Equal(HttpStatusCode.NotFound, (await task).StatusCode);
+    }
+
+    private HttpClient ClientWithGateway(IActorRef gateway)
     {
         var client = _factory.WithWebHostBuilder(b =>
             b.ConfigureServices(s =>

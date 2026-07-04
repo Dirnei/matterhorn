@@ -11,6 +11,21 @@
     <PackageReference Include="Akka.Hosting" Version="1.5.70" />
     <PackageReference Include="Akka.Streams" Version="1.5.70" />
     <PackageReference Include="HiveMQtt" Version="0.44.0" />
+    <PackageReference Include="NSwag.MSBuild" Version="14.7.1">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
   </ItemGroup>
+
+  <!-- Contract-first: generate the abstract API controllers + DTOs from the OpenAPI YAML on
+       every build, into obj/ (not committed). The authored YAML is the single source of truth. -->
+  <Target Name="GenerateApiFromOpenApi" BeforeTargets="BeforeCompile;CoreCompile">
+    <Exec Command="$(NSwagExe_Net100) run nswag.json" WorkingDirectory="$(MSBuildProjectDirectory)" />
+    <ItemGroup>
+      <Compile Include="$(MSBuildProjectDirectory)/obj/generated/ApiContract.g.cs"
+               Condition="Exists('$(MSBuildProjectDirectory)/obj/generated/ApiContract.g.cs')"
+               KeepDuplicates="false" />
+    </ItemGroup>
+  </Target>
 
 </Project>

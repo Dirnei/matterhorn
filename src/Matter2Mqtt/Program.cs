@@ -34,12 +34,12 @@ builder.Services.AddSingleton(controller);
 builder.Services.AddSingleton<IMqttPublisher, HiveMqttPublisher>();
 builder.Services.AddSingleton<IConfigureApiKey>(new StaticApiKey(cfg.ApiKey));
 
-// REST shares the MQTT JSON shape (snake_case, null fields omitted) so the two surfaces match.
-builder.Services.ConfigureHttpJsonOptions(o =>
-{
-    o.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower;
-    o.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
-});
+// Contract-first controllers (generated from contracts/matter2mqtt.openapi.yaml). The generated
+// DTOs carry their snake_case wire names via [JsonPropertyName]; we only omit null fields so the
+// exposes shape matches the MQTT projection (spec §7).
+builder.Services
+    .AddControllers()
+    .AddJsonOptions(o => o.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull);
 
 builder.Services.AddAkka("matter2mqtt", (b, sp) => b
     .WithActors((system, registry) =>
@@ -60,7 +60,7 @@ if (bool.TryParse(builder.Configuration["DevSeed"], out var devSeed) && devSeed)
 
 var app = builder.Build();
 app.UseMiddleware<ApiKeyMiddleware>();
-ApiEndpoints.Map(app);
+app.MapControllers();
 app.Run();
 
 public partial class Program { }

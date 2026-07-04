@@ -1,0 +1,178 @@
+openapi: 3.0.3
+info:
+  title: Matter2Mqtt REST API
+  description: >-
+    Thin REST facade over the Matter2Mqtt actor model — a request/response view of the
+    same state exposed on MQTT (nothing lives in one that isn't in the other). The HTTP
+    verb carries intent: GET reads, PATCH applies a partial state change.
+  version: 1.0.0
+
+servers:
+  - url: /
+
+security:
+  - ApiKey: []
+
+paths:
+  /api/devices:
+    get:
+      operationId: listDevices
+      summary: List all known devices.
+      tags: [devices]
+      responses:
+        '200':
+          description: Every device and its exposes contract.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Device'
+
+  /api/devices/{name}:
+    get:
+      operationId: getDeviceState
+      summary: Read a device's current state.
+      tags: [devices]
+      parameters:
+        - $ref: '#/components/parameters/FriendlyName'
+      responses:
+        '200':
+          description: The device's current retained state (same shape as the MQTT state topic).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceState'
+        '404':
+          description: No device with that friendly name.
+    patch:
+      operationId: setDeviceState
+      summary: Apply a partial state change to a device.
+      tags: [devices]
+      parameters:
+        - $ref: '#/components/parameters/FriendlyName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetRequest'
+      responses:
+        '202':
+          description: Accepted; the change is applied asynchronously against the fabric.
+
+  /api/commission:
+    post:
+      operationId: commission
+      summary: Commission a new device by setup code.
+      tags: [bridge]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommissionRequest'
+      responses:
+        '202':
+          description: Commissioning started; correlate progress by transaction id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommissionAccepted'
+
+  /api/bridge/info:
+    get:
+      operationId: getBridgeInfo
+      summary: Service metadata.
+      tags: [bridge]
+      responses:
+        '200':
+          description: Bridge/service information.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BridgeInfo'
+
+components:
+  securitySchemes:
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+
+  parameters:
+    FriendlyName:
+      name: name
+      in: path
+      required: true
+      description: The device friendly name.
+      schema:
+        type: string
+
+  schemas:
+    Device:
+      type: object
+      required: [friendly_name, node_id, endpoint, device_type, reachable, exposes]
+      properties:
+        friendly_name: { type: string }
+        node_id: { type: string }
+        endpoint: { type: integer, format: int32 }
+        vendor_name: { type: string, nullable: true }
+        product_name: { type: string, nullable: true }
+        vendor_id: { type: integer, format: int32 }
+        product_id: { type: integer, format: int32 }
+        device_type: { type: string }
+        reachable: { type: boolean }
+        exposes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Expose'
+
+    Expose:
+      type: object
+      required: [type, property, access]
+      properties:
+        type: { type: string, description: 'binary | numeric' }
+        property: { type: string }
+        access: { type: integer, format: int32, description: 'Z2M bitmask: 1=published, 2=set, 4=get' }
+        value_on: { type: string, nullable: true }
+        value_off: { type: string, nullable: true }
+        value_min: { type: integer, format: int32, nullable: true }
+        value_max: { type: integer, format: int32, nullable: true }
+        unit: { type: string, nullable: true }
+
+    SetRequest:
+      type: object
+      description: One or more settable properties; omitted properties are left unchanged.
+      properties:
+        state:
+          type: string
+          nullable: true
+          enum: [ON, OFF, TOGGLE]
+        brightness: { type: integer, format: int32, minimum: 0, maximum: 254, nullable: true }
+        color_temp: { type: integer, format: int32, minimum: 147, maximum: 500, nullable: true }
+
+    DeviceState:
+      type: object
+      description: Free-form map of semantic property names to current values.
+      additionalProperties: true
+
+    CommissionRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          description: Matter setup code (QR 'MT:' string or 11-digit manual code).
+
+    CommissionAccepted:
+      type: object
+      required: [transaction]
+      properties:
+        transaction: { type: string }
+
+    BridgeInfo:
+      type: object
+      required: [service]
+      properties:
+        service: { type: string }

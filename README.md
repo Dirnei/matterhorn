@@ -51,6 +51,15 @@ curl http://localhost:16090/api/devices/essentials_bulb_1_1
 
 The retained `matter2mqtt/essentials_bulb_1_1` topic updates in response either way.
 
+## API contract (contract-first)
+
+The REST API is generated from an authored OpenAPI contract —
+[`contracts/matter2mqtt.openapi.yaml`](contracts/matter2mqtt.openapi.yaml) is the single source of
+truth. On build, NSwag (`src/Matter2Mqtt/nswag.json`) generates the abstract ASP.NET controller
+base + DTOs into `obj/` (not committed); `Api/Matter2MqttController.cs` implements that base against
+the actor model and maps the internal domain records to the generated wire DTOs. To change the API:
+edit the YAML, rebuild, implement any new operations.
+
 ## Configuration
 
 | Env / key | Purpose | Default |

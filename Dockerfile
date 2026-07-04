@@ -9,6 +9,7 @@ COPY src/Matter2Mqtt/Matter2Mqtt.csproj src/Matter2Mqtt/
 RUN dotnet restore src/Matter2Mqtt/Matter2Mqtt.csproj -p:NuGetAudit=false
 
 COPY src/Matter2Mqtt/ src/Matter2Mqtt/
+COPY contracts/ contracts/
 RUN dotnet publish src/Matter2Mqtt/Matter2Mqtt.csproj -c Release -o /app -p:NuGetAudit=false
 
 # ---- runtime ----
