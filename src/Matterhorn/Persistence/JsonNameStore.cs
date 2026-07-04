@@ -26,7 +26,11 @@ public sealed class JsonNameStore(string path) : INameStore
         var raw = names.ToDictionary(kv => $"{kv.Key.NodeId}_{kv.Key.Endpoint}", kv => kv.Value);
         var dir = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-        File.WriteAllText(path, JsonSerializer.Serialize(raw, new JsonSerializerOptions { WriteIndented = true }));
+        // Write to a sibling temp file and atomically swap it in, so a crash mid-write
+        // can never leave a truncated/corrupt store (this file is the only durable state).
+        var tmp = path + ".tmp";
+        File.WriteAllText(tmp, JsonSerializer.Serialize(raw, new JsonSerializerOptions { WriteIndented = true }));
+        File.Move(tmp, path, overwrite: true);
     }
 
     private static bool TryParseKey(string key, out (ulong, ushort) parsed)

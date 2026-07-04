@@ -106,13 +106,17 @@ public sealed class MatterGatewayActor : ReceiveActor
         // node_removed carries only the node id, so drop every endpoint registered under that node.
         var keys = _byKey.Keys.Where(k => k.Item1 == msg.NodeId).ToList();
         if (keys.Count == 0) return;
+        var prunedOverride = false;
         foreach (var key in keys)
         {
             if (!_byKey.Remove(key, out var reg)) continue;
             _byName.Remove(reg.FriendlyName);
             Context.Stop(reg.Actor);
+            // Drop any persisted name override for the departed endpoint so names.json doesn't grow forever.
+            prunedOverride |= _overrides.Remove(key);
             PublishEvent("device_leave", new { friendly_name = reg.FriendlyName });
         }
+        if (prunedOverride) SaveOverrides();
         PublishDevices();
     }
 
@@ -178,12 +182,19 @@ public sealed class MatterGatewayActor : ReceiveActor
         reg.Actor.Tell(new Rename(slug));
 
         _overrides[(reg.Info.NodeId, reg.Info.Endpoint)] = slug;
-        try { _names.Save(_overrides); }
-        catch (Exception ex) { _log.Warning("Failed to persist name override: {Error}", ex.Message); }
+        SaveOverrides();
 
         PublishDevices();
         PublishEvent("device_renamed", new { from, to = slug });
         return new RenameResult(true, null, slug);
+    }
+
+    // Persist the override map; a write failure is logged, never fatal (a read-only data dir
+    // degrades to in-memory-only renames rather than breaking the operation).
+    private void SaveOverrides()
+    {
+        try { _names.Save(_overrides); }
+        catch (Exception ex) { _log.Warning("Failed to persist name overrides: {Error}", ex.Message); }
     }
 
     private void OnReachabilityChanged(ReachabilityChanged r)

@@ -33,4 +33,22 @@ public class JsonNameStoreTests
         }
         finally { File.Delete(path); }
     }
+
+    [Fact]
+    public void Save_overwrites_a_previous_store_and_leaves_no_temp_file()
+    {
+        var path = TempFile();
+        try
+        {
+            var store = new JsonNameStore(path);
+            store.Save(new Dictionary<(ulong, ushort), string> { [(5UL, (ushort)1)] = "old_name" });
+            store.Save(new Dictionary<(ulong, ushort), string> { [(5UL, (ushort)1)] = "new_name" });
+
+            var loaded = new JsonNameStore(path).Load();
+            Assert.Equal("new_name", loaded[(5UL, 1)]);
+            Assert.Single(loaded);
+            Assert.False(File.Exists(path + ".tmp")); // atomic swap leaves no temp file behind
+        }
+        finally { File.Delete(path); }
+    }
 }

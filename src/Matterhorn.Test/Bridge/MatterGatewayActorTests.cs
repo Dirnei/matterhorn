@@ -272,4 +272,72 @@ public class MatterGatewayActorTests : TestKit
 
         AwaitAssert(() => Assert.Contains(fake.Invocations, i => i.NodeId == 5 && i.Cmd.CommandName == "On"));
     }
+
+    [Fact]
+    public void Rename_to_the_same_slug_is_a_no_op_success()
+    {
+        var fake = new FakeMatterController();
+        var mqtt = new InMemoryMqttPublisher();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, mqtt, new MqttTopics("matterhorn"), new InMemoryNameStore()));
+        fake.Emit(new NodeAdded(Light(5)));
+        AwaitAssert(() => Assert.Single(gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result));
+
+        // "Bulb_5_1" slugs back to the existing "bulb_5_1" — nothing actually changes.
+        var result = gw.Ask<RenameResult>(new RenameRequest("bulb_5_1", "Bulb_5_1", "tx1")).Result;
+
+        Assert.True(result.Ok);
+        Assert.Equal("bulb_5_1", gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result[0].FriendlyName);
+        Assert.DoesNotContain(mqtt.Messages, m => m.Topic == "matterhorn/bridge/event" && m.Payload.Contains("device_renamed"));
+    }
+
+    [Fact]
+    public void Attribute_routing_still_works_after_a_rename()
+    {
+        // Regression: attribute routing keys on (nodeId, endpoint) via _byKey, which a rename must
+        // not disturb — an attribute after a rename must publish under the NEW name topic.
+        var fake = new FakeMatterController();
+        var mqtt = new InMemoryMqttPublisher();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, mqtt, new MqttTopics("matterhorn"), new InMemoryNameStore()));
+        fake.Emit(new NodeAdded(Light(5)));
+        AwaitAssert(() => Assert.Single(gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result));
+        Assert.True(gw.Ask<RenameResult>(new RenameRequest("bulb_5_1", "lamp", "tx1")).Result.Ok);
+
+        fake.Emit(new AttributeChanged(new AttributeReading(5, 1, MatterClusters.OnOff, 0,
+            JsonDocument.Parse("true").RootElement)));
+
+        AwaitAssert(() => Assert.Contains(mqtt.Messages,
+            m => m.Topic == "matterhorn/lamp" && m.Payload.Contains("\"state\":\"ON\"")));
+    }
+
+    [Fact]
+    public void Rename_succeeds_even_when_persistence_fails()
+    {
+        // A read-only data dir (Save throws) must degrade to an in-memory rename, not break it.
+        var fake = new FakeMatterController();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, new InMemoryMqttPublisher(), new MqttTopics("matterhorn"), new ThrowingNameStore()));
+        fake.Emit(new NodeAdded(Light(5)));
+        AwaitAssert(() => Assert.Single(gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result));
+
+        var result = gw.Ask<RenameResult>(new RenameRequest("bulb_5_1", "lamp", "tx1")).Result;
+
+        Assert.True(result.Ok);
+        Assert.Equal("lamp", gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result[0].FriendlyName);
+    }
+
+    [Fact]
+    public void Removing_a_device_prunes_its_persisted_override()
+    {
+        var fake = new FakeMatterController();
+        var store = new InMemoryNameStore();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, new InMemoryMqttPublisher(), new MqttTopics("matterhorn"), store));
+        fake.Emit(new NodeAdded(Light(5)));
+        AwaitAssert(() => Assert.Single(gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result));
+        Assert.True(gw.Ask<RenameResult>(new RenameRequest("bulb_5_1", "lamp", "tx1")).Result.Ok);
+        Assert.True(store.Names.ContainsKey((5UL, 1)));
+
+        fake.Emit(new NodeRemoved(5));
+
+        AwaitAssert(() => Assert.Empty(gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result));
+        Assert.False(store.Names.ContainsKey((5UL, 1))); // override pruned from the store
+    }
 }
