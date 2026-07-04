@@ -86,6 +86,21 @@ public class MatterhornControllerTests : TestKit, IClassFixture<WebApplicationFa
         Assert.Equal(HttpStatusCode.NotFound, (await task).StatusCode);
     }
 
+    [Fact]
+    public async Task Patch_device_forwards_hue_and_saturation()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGateway(probe.Ref);
+
+        var task = client.PatchAsJsonAsync("/api/devices/lamp",
+            new Dictionary<string, int> { ["hue"] = 100, ["saturation"] = 200 });
+
+        var msg = probe.ExpectMsg<SetDevice>();
+        Assert.Equal(100, msg.Payload["hue"].GetInt32());
+        Assert.Equal(200, msg.Payload["saturation"].GetInt32());
+        Assert.Equal(HttpStatusCode.Accepted, (await task).StatusCode);
+    }
+
     private HttpClient ClientWithGateway(IActorRef gateway)
     {
         var client = _factory.WithWebHostBuilder(b =>

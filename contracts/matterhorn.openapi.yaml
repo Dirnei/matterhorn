@@ -123,6 +123,7 @@ components:
         product_id: { type: integer, format: int32 }
         device_type: { type: string }
         reachable: { type: boolean }
+        transport: { type: string, description: 'wifi | thread | ethernet | unknown' }
         exposes:
           type: array
           items:
@@ -151,6 +152,8 @@ components:
           enum: [ON, OFF, TOGGLE]
         brightness: { type: integer, format: int32, minimum: 0, maximum: 254, nullable: true }
         color_temp: { type: integer, format: int32, minimum: 147, maximum: 500, nullable: true }
+        hue: { type: integer, format: int32, minimum: 0, maximum: 254, nullable: true }
+        saturation: { type: integer, format: int32, minimum: 0, maximum: 254, nullable: true }
 
     DeviceState:
       type: object

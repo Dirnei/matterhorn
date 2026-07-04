@@ -37,6 +37,8 @@ public sealed class MatterhornController(GatewayRef gateway) : Gen.MatterhornCon
         if (body.State.HasValue) payload["state"] = JsonSerializer.SerializeToElement(body.State.Value.ToString());
         if (body.Brightness.HasValue) payload["brightness"] = JsonSerializer.SerializeToElement(body.Brightness.Value);
         if (body.Color_temp.HasValue) payload["color_temp"] = JsonSerializer.SerializeToElement(body.Color_temp.Value);
+        if (body.Hue.HasValue) payload["hue"] = JsonSerializer.SerializeToElement(body.Hue.Value);
+        if (body.Saturation.HasValue) payload["saturation"] = JsonSerializer.SerializeToElement(body.Saturation.Value);
         if (payload.Count > 0) Gw.Tell(new SetDevice(name, payload));
         return Task.FromResult<IActionResult>(Accepted());
     }
@@ -63,6 +65,7 @@ public sealed class MatterhornController(GatewayRef gateway) : Gen.MatterhornCon
         Product_id = d.ProductId,
         Device_type = d.DeviceType,
         Reachable = d.Reachable,
+        Transport = d.Transport,
         Exposes = d.Exposes.Select(ToDto).ToList(),
     };
 
