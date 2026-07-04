@@ -12,7 +12,8 @@ namespace Matterhorn.Matter;
 public sealed record ServerResult(int MessageId, ulong? NodeId, string? Error);
 
 /// <summary>
-/// Pure WS-JSON ⇄ domain codec for the python-matter-server protocol.
+/// Pure WS-JSON ⇄ domain codec for the matter-server WebSocket protocol (matterjs-server /
+/// python-matter-server).
 /// Isolated here so the wire format stays behind <see cref="IMatterController"/>.
 /// </summary>
 public static class MatterServerProtocol
@@ -132,7 +133,7 @@ public static class MatterServerProtocol
     }
 
     /// <summary>
-    /// Expands one python-matter-server node (MatterNodeData) into a <see cref="NodeAdded"/> per
+    /// Expands one matter-server node (MatterNodeData) into a <see cref="NodeAdded"/> per
     /// application endpoint. Basic Information (cluster 0x0028 on endpoint 0) supplies vendor/product
     /// identity; each non-root endpoint's Descriptor (0x001D) ServerList becomes its cluster set and
     /// DeviceTypeList its type. Endpoint 0 is the root node, not a device, so it is skipped.

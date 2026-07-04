@@ -10,7 +10,7 @@ public record MatterhornConfig(
 {
     public static MatterhornConfig FromConfiguration(IConfiguration c) => new(
         ControllerWsUrl: c["Controller:WsUrl"] ?? "ws://localhost:5580/ws",
-        ControllerKind: c["Controller:Kind"] ?? "python-matter-server",
+        ControllerKind: c["Controller:Kind"] ?? "matterjs-server",
         MqttHost: c["Mqtt:Host"] ?? "localhost",
         MqttPort: int.TryParse(c["Mqtt:Port"], out var p) ? p : 1883,
         MqttUser: c["Mqtt:User"], MqttPassword: c["Mqtt:Password"],

@@ -1,38 +1,33 @@
-# python-matter-server — the real Matter controller Matterhorn talks to.
+# matterjs-server — the Matter controller Matterhorn talks to.
 #
-# Run this ON THE PI (or any Linux host on the same LAN as your bulb). It MUST use host
-# networking: Matter commissioning needs mDNS + IPv6 link-local access to the device, which a
-# Docker bridge network cannot provide. This is why it can't run under Docker Desktop on
-# Windows/Mac — only a real Linux host works.
+# matterjs-server (https://github.com/matter-js/matterjs-server) is the maintained successor to the
+# now-archived home-assistant-libs/python-matter-server; it exposes the same WebSocket API on the
+# same port (5580, /ws), so Matterhorn drives either one unchanged.
 #
-#   On the Pi:
+# Run this ON A LINUX HOST (e.g. your Raspberry Pi) on the same LAN as your devices. It uses host
+# networking: Matter commissioning needs mDNS + IPv6 link-local access to the device, which a Docker
+# bridge network can't provide — which is also why it can't run under Docker Desktop on Windows/mac.
+#
+#   On the host:
 #     docker compose -f docker-compose.matter-server.yml up -d
 #     docker compose -f docker-compose.matter-server.yml logs -f    # watch commissioning
 #
-#   Then point Matterhorn at it (from your Windows dev box, same LAN):
-#     Controller__WsUrl=ws://<pi-ip>:5580/ws dotnet run --project src/Matterhorn
-#   (Controller__Kind already defaults to python-matter-server.)
-#
-# Requirements on the Pi:
-#   - 64-bit OS (arm64). The image has no 32-bit build.
-#   - IPv6 enabled on the host — Matter is IPv6-only on the operational network.
+#   Then point Matterhorn at it (from anywhere on the LAN):
+#     CONTROLLER_WS_URL=ws://<host-ip>:5580/ws   (see .env.example)
 
-name: matter-server
+name: matterjs-server
 
 services:
-  matter-server:
-    # Established image path. If this fails to pull, the project also publishes at
-    # ghcr.io/matter-js/python-matter-server:stable — switch the org and retry.
-    image: ghcr.io/home-assistant-libs/python-matter-server:stable
-    container_name: matter-server
+  matterjs-server:
+    image: ghcr.io/matter-js/matterjs-server:stable
+    container_name: matterjs-server
     restart: unless-stopped
-    # Required for mDNS/IPv6 commissioning. Linux host only; binds the WS API on host :5580.
-    network_mode: host
-    security_opt:
-      - apparmor=unconfined
+    network_mode: host                 # required for mDNS/IPv6 commissioning; Linux host only
+    environment:
+      PRODUCTION_MODE: "true"
+      LOG_LEVEL: info
     volumes:
-      - matter-data:/data          # fabric credentials + node database (persist across restarts)
-      - /run/dbus:/run/dbus:ro      # only needed for Bluetooth commissioning; harmless otherwise
+      - matter-data:/data              # fabric credentials + node database (persist across restarts)
 
 volumes:
   matter-data:

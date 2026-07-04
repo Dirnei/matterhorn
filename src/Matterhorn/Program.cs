@@ -24,7 +24,7 @@ var mqttClient = new HiveMQClient(new HiveMQClientOptionsBuilder()
 IMatterController controller = cfg.ControllerKind switch
 {
     "fake" => new FakeMatterController(),
-    _ => new PythonMatterServerController(cfg.ControllerWsUrl),
+    _ => new MatterServerController(cfg.ControllerWsUrl),
 };
 
 builder.Services.AddSingleton(cfg);

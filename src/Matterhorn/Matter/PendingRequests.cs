@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 namespace Matterhorn.Matter;
 
 /// <summary>
-/// Correlates request/response commands over the single python-matter-server WebSocket: a caller
+/// Correlates request/response commands over the single matter-server WebSocket: a caller
 /// <see cref="Register"/>s the message id it's about to send and awaits the returned task; the
 /// receive loop <see cref="Complete"/>s it when the matching reply arrives. On
 /// disconnect the loop calls <see cref="FailAll"/> so in-flight callers fault instead of hanging.

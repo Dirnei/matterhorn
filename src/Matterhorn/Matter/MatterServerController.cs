@@ -6,13 +6,14 @@ using Matterhorn.Devices;
 namespace Matterhorn.Matter;
 
 /// <summary>
-/// <see cref="IMatterController"/> over a python-matter-server WebSocket. Fire-and-forget commands
-/// (<c>start_listening</c>, <c>device_command</c>) and request/response commands (<c>commission_with_code</c>,
+/// <see cref="IMatterController"/> over a Matter-server WebSocket (matterjs-server, or the archived
+/// python-matter-server — same API). Fire-and-forget commands (<c>start_listening</c>,
+/// <c>device_command</c>) and request/response commands (<c>commission_with_code</c>,
 /// <c>remove_node</c>, correlated by message id via <see cref="PendingRequests"/>) both share the one
 /// socket; the receive loop routes replies to waiters and events to the stream.
-/// Phase-1 automated tests use <see cref="FakeMatterController"/>.
+/// Automated tests use <see cref="FakeMatterController"/> instead.
 /// </summary>
-public sealed class PythonMatterServerController(string wsUrl) : IMatterController
+public sealed class MatterServerController(string wsUrl) : IMatterController
 {
     private readonly ClientWebSocket _socket = new();
     private readonly SemaphoreSlim _sendLock = new(1, 1);
@@ -58,7 +59,7 @@ public sealed class PythonMatterServerController(string wsUrl) : IMatterControll
         finally
         {
             // Don't leave a commission/remove caller awaiting a reply that can never arrive.
-            _pending.FailAll(new InvalidOperationException("python-matter-server connection closed"));
+            _pending.FailAll(new InvalidOperationException("matter-server connection closed"));
         }
     }
 

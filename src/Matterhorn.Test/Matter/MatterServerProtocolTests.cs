@@ -32,7 +32,7 @@ public class MatterServerProtocolTests
     [Fact]
     public void ParseIncoming_attribute_update_yields_AttributeChanged()
     {
-        // python-matter-server attribute path format: "<endpoint>/<cluster>/<attribute>"
+        // matter-server attribute path format: "<endpoint>/<cluster>/<attribute>"
         var json = """
         {"event":"attribute_updated","data":[1, "1/6/0", true]}
         """;

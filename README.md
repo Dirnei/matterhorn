@@ -35,14 +35,14 @@ ecosystem.
 ## How it works
 
 ```
-Matter device ──(Matter/IP)── python-matter-server ──(WebSocket)── Matterhorn ──┬── MQTT broker
-                                                                                ├── REST API
-                                                                                └── Web dashboard (SSE)
+Matter device ──(Matter/IP)── matterjs-server ──(WebSocket)── Matterhorn ──┬── MQTT broker
+                                                                           ├── REST API
+                                                                           └── Web dashboard (SSE)
 ```
 
 Matterhorn does **not** speak Matter to devices directly. It drives a
-[python-matter-server](https://github.com/home-assistant-libs/python-matter-server) instance (the
-same controller Home Assistant uses), which does the commissioning and low-level Matter work.
+[matterjs-server](https://github.com/matter-js/matterjs-server) instance, which does the
+commissioning and low-level Matter work.
 
 That controller must run on a **Linux host on your LAN with host networking** — Matter commissioning
 needs mDNS + IPv6 link-local access to the device, which Docker Desktop on Windows/macOS can't
@@ -69,7 +69,7 @@ docker compose up --build
 
 ### With real devices
 
-**1. Run the Matter controller on your Linux host / Pi:**
+**1. Run the Matter controller (matterjs-server) on your Linux host / Pi:**
 
 ```bash
 # on the Pi (64-bit OS, IPv6 on):
@@ -81,7 +81,7 @@ docker compose -f docker-compose.matter-server.yml up -d
 ```bash
 cp .env.example .env
 # edit .env:
-#   CONTROLLER_KIND=python-matter-server
+#   CONTROLLER_KIND=matterjs-server
 #   CONTROLLER_WS_URL=ws://<pi-ip>:5580/ws
 #   DEV_SEED=false
 ```
@@ -131,7 +131,7 @@ to the app's settings on the right.
 
 | `.env` (Docker) | App env | Purpose | Default |
 |---|---|---|---|
-| `CONTROLLER_KIND` | `Controller__Kind` | `fake` or `python-matter-server` | `fake` (compose) |
+| `CONTROLLER_KIND` | `Controller__Kind` | `fake` or `matterjs-server` | `fake` (compose) |
 | `CONTROLLER_WS_URL` | `Controller__WsUrl` | Matter controller WebSocket URL | `ws://localhost:5580/ws` |
 | `DEV_SEED` | `DevSeed` | seed demo devices (fake controller only) | `true` (compose) |
 | — | `Mqtt__Host` / `Mqtt__Port` | MQTT broker | `localhost` / `1883` |
@@ -159,6 +159,6 @@ dotnet test src/Matterhorn.Test                # run the test suite
 For iterating on the app without Docker you can run it directly against a controller:
 
 ```bash
-Controller__Kind=python-matter-server Controller__WsUrl=ws://<pi-ip>:5580/ws \
+Controller__Kind=matterjs-server Controller__WsUrl=ws://<pi-ip>:5580/ws \
   dotnet run --project src/Matterhorn        # REST + dashboard on http://localhost:5006
 ```
