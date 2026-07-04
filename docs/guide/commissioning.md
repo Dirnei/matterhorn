@@ -8,3 +8,5 @@ Open the dashboard and use the **Commission** field:
   *in addition to* Apple Home; both control it independently.
 
 The device appears on the dashboard once the controller finishes interviewing it (~30–60s).
+
+To rename it or remove it from the fabric, see [Renaming & unpairing](/guide/managing-devices).

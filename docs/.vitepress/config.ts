@@ -22,6 +22,7 @@ export default defineConfig({
             { text: 'How it works', link: '/guide/how-it-works' },
             { text: 'Commissioning a device', link: '/guide/commissioning' },
             { text: 'Controlling a device', link: '/guide/control' },
+            { text: 'Renaming & unpairing', link: '/guide/managing-devices' },
             { text: 'Configuration', link: '/guide/configuration' },
             { text: 'REST API', link: '/guide/rest-api' }
           ]

@@ -21,5 +21,5 @@ features:
   - title: REST API
     details: An OpenAPI-described API (GET/PATCH /api/devices/...) with Swagger UI. MQTT and REST are two projections of one model.
   - title: Web dashboard
-    details: Live device cards over Server-Sent Events, with controls generated from each device's capabilities — on/off, brightness, colour temperature, an RGB colour wheel, and sensor readouts.
+    details: Live device cards over Server-Sent Events, with controls generated from each device's capabilities — on/off, brightness, colour temperature, an RGB colour wheel, and sensor readouts. Rename or unpair a device from its card menu.
 ---

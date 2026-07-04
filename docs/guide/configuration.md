@@ -11,6 +11,10 @@ to the app's settings on the right.
 | — | `Mqtt__Host` / `Mqtt__Port` | MQTT broker | `localhost` / `1883` |
 | — | `Mqtt__BaseTopic` | base topic | `matterhorn` |
 | — | `Rest__ApiKey` | if set, `/api/*` requires it via `X-Api-Key` | unset (open) |
+| — | `Storage__NamesFile` | JSON file for persisted device-name overrides ([Renaming](/guide/managing-devices)) | `data/names.json` |
+
+`Storage__NamesFile` holds the custom names set via rename. In Docker it lives on the
+`matterhorn-data` volume (mounted at `/data`), so renames survive container recreation.
 
 The API key, when set, guards only `/api/*` — the dashboard has a field for it; Swagger and the raw
 contract stay public.
