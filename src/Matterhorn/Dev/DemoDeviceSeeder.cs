@@ -27,14 +27,15 @@ public sealed class DemoDeviceSeeder(IMatterController controller, ILogger<DemoD
         // Reflect commands back as attribute changes so /set (MQTT or REST) visibly updates state.
         fake.EchoCommandsAsAttributes = true;
 
-        var bulb = new EndpointInfo(1, 1, "Nanoleaf", "Essentials Bulb", 4442, 3, "OnOffDimmableLight", true,
-            new[] { MatterClusters.OnOff, MatterClusters.LevelControl, MatterClusters.ColorControl });
+        var bulb = new EndpointInfo(1, 1, "Nanoleaf", "Essentials Bulb", 4442, 3, "Extended Color Light", true,
+            new[] { MatterClusters.OnOff, MatterClusters.LevelControl, MatterClusters.ColorControl },
+            "wifi", 0x1D);   // HS + XY + CT
         var sensor = new EndpointInfo(2, 1, "Aqara", "Motion Sensor", 4447, 42, "OccupancySensor", true,
             new[]
             {
                 MatterClusters.OccupancySensing, MatterClusters.TemperatureMeasurement,
                 MatterClusters.RelativeHumidityMeasurement, MatterClusters.PowerSource,
-            });
+            }, "thread", 0);
 
         fake.Emit(new NodeAdded(bulb));
         fake.Emit(new NodeAdded(sensor));
@@ -42,6 +43,9 @@ public sealed class DemoDeviceSeeder(IMatterController controller, ILogger<DemoD
         fake.Emit(new AttributeChanged(new AttributeReading(1, 1, MatterClusters.OnOff, 0, J("true"))));
         fake.Emit(new AttributeChanged(new AttributeReading(1, 1, MatterClusters.LevelControl, 0, J("200"))));
         fake.Emit(new AttributeChanged(new AttributeReading(1, 1, MatterClusters.ColorControl, 7, J("370"))));
+        fake.Emit(new AttributeChanged(new AttributeReading(1, 1, MatterClusters.ColorControl, 0, J("40"))));    // hue
+        fake.Emit(new AttributeChanged(new AttributeReading(1, 1, MatterClusters.ColorControl, 1, J("180"))));   // saturation
+        fake.Emit(new AttributeChanged(new AttributeReading(1, 1, MatterClusters.ColorControl, 8, J("0"))));     // color_mode = hs
         fake.Emit(new AttributeChanged(new AttributeReading(2, 1, MatterClusters.OccupancySensing, 0, J("0"))));
         fake.Emit(new AttributeChanged(new AttributeReading(2, 1, MatterClusters.PowerSource, 12, J("184"))));        // 92%
         fake.Emit(new AttributeChanged(new AttributeReading(2, 1, MatterClusters.RelativeHumidityMeasurement, 0, J("4750")))); // 47.5%
