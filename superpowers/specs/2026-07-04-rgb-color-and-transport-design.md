@@ -159,7 +159,15 @@ Unit (xUnit), each red-first:
 Manual/live (docker against the Pi, per [[run-app-via-docker]]): commission/existing H600C shows a
 Wi-Fi pill, a working color wheel that moves the real bulb, and `color_mode` reflecting HS.
 
-## 9. Rollout
+## 9. Known limitation / future work
+
+An **XY-only** bulb (advertises the XY feature but not HS) gets **no color control** under this
+design — `ExposesBuilder` gates color on the HS bit, so it degrades gracefully to
+brightness/color_temp only (no broken widget, just no wheel). If such a device shows up, the follow
+up is an XY color path: expose `color_x`/`color_y` (or convert xy→HS for the picker) and map
+`MoveToColor`. Deferred until a real XY-only device exists — HS covers every color bulb we have.
+
+## 10. Rollout
 
 Run via `docker compose up --build` with `.env` pointing at the Pi (`192.168.0.118:5580`). No schema
 migrations, no persistence. Backward compatible: devices without HS simply omit the color exposes;
