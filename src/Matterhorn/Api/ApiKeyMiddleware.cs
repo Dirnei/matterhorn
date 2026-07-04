@@ -9,7 +9,7 @@ public sealed record GatewayRef(IActorRef Ref);
 public interface IConfigureApiKey { string? ApiKey { get; } }
 public sealed record StaticApiKey(string? ApiKey) : IConfigureApiKey;
 
-/// <summary>Rejects requests missing a valid <c>X-Api-Key</c> when a key is configured (spec §8).</summary>
+/// <summary>Rejects requests missing a valid <c>X-Api-Key</c> when a key is configured.</summary>
 public sealed class ApiKeyMiddleware(RequestDelegate next, IConfigureApiKey key)
 {
     public async Task Invoke(HttpContext ctx)

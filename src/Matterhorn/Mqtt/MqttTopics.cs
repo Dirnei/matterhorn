@@ -1,6 +1,6 @@
 namespace Matterhorn.Mqtt;
 
-/// <summary>Pure builders/parsers for the Z2M-shaped topic tree (spec §4).</summary>
+/// <summary>Pure builders/parsers for the Z2M-shaped topic tree.</summary>
 public sealed class MqttTopics(string baseTopic)
 {
     public string Base { get; } = baseTopic;

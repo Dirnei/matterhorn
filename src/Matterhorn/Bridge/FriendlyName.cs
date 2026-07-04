@@ -2,7 +2,7 @@ using System.Text;
 
 namespace Matterhorn.Bridge;
 
-/// <summary>Default friendly-name generation and slugification (spec §5).</summary>
+/// <summary>Default friendly-name generation and slugification.</summary>
 public static class FriendlyName
 {
     public static string Default(string? productName, ulong nodeId, ushort endpoint)

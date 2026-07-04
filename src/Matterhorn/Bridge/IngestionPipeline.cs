@@ -6,8 +6,8 @@ using Matterhorn.Matter;
 namespace Matterhorn.Bridge;
 
 /// <summary>
-/// Akka.Streams graph that feeds controller events into the actor model with backpressure
-/// (spec §9). All events are delivered to the gateway, which owns endpoint registration and
+/// Akka.Streams graph that feeds controller events into the actor model with backpressure.
+/// All events are delivered to the gateway, which owns endpoint registration and
 /// routing — so <see cref="NodeAdded"/> is always processed before the attributes that follow
 /// it (FIFO mailbox), and endpoint lookup stays single-threaded.
 /// </summary>

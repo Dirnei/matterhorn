@@ -5,7 +5,7 @@ namespace Matterhorn.Matter;
 /// <summary>
 /// Correlates request/response commands over the single python-matter-server WebSocket: a caller
 /// <see cref="Register"/>s the message id it's about to send and awaits the returned task; the
-/// receive loop <see cref="Complete"/>s it when the matching reply arrives (spec §13). On
+/// receive loop <see cref="Complete"/>s it when the matching reply arrives. On
 /// disconnect the loop calls <see cref="FailAll"/> so in-flight callers fault instead of hanging.
 /// </summary>
 public sealed class PendingRequests

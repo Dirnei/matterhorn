@@ -3,7 +3,7 @@ using Matterhorn.Devices;
 
 namespace Matterhorn.Matter;
 
-/// <summary>Events surfaced by an <see cref="IMatterController"/> (spec §3).</summary>
+/// <summary>Events surfaced by an <see cref="IMatterController"/>.</summary>
 public abstract record MatterEvent;
 public record NodeAdded(EndpointInfo Endpoint) : MatterEvent;
 public record NodeRemoved(ulong NodeId) : MatterEvent;

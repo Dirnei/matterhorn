@@ -8,7 +8,7 @@ namespace Matterhorn.Devices;
 
 /// <summary>
 /// One actor per logical device (node endpoint). Holds retained state, maps attribute
-/// changes to Z2M properties, and translates <c>/set</c> into controller commands (spec §9).
+/// changes to Z2M properties, and translates <c>/set</c> into controller commands.
 /// </summary>
 public sealed class MatterEndpointActor : ReceiveActor
 {

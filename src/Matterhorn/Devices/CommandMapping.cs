@@ -5,7 +5,7 @@ namespace Matterhorn.Devices;
 
 /// <summary>
 /// Write path: maps a <c>/set</c> payload of semantic properties into ordered
-/// Matter cluster commands (spec §5).
+/// Matter cluster commands.
 /// </summary>
 public static class CommandMapping
 {

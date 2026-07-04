@@ -5,7 +5,7 @@ namespace Matterhorn.Configuration;
 
 /// <summary>
 /// The single JSON shape shared by the MQTT and REST projections so the two surfaces are
-/// byte-identical and Z2M-compatible (spec §2, §7): snake_case property names, null fields
+/// byte-identical and Z2M-compatible: snake_case property names, null fields
 /// omitted (e.g. an <c>exposes</c> entry only carries the keys that apply to it).
 /// </summary>
 public static class JsonDefaults

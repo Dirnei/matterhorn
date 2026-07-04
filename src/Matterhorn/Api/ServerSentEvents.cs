@@ -8,7 +8,7 @@ namespace Matterhorn.Api;
 
 /// <summary>
 /// <c>GET /api/events</c> — a Server-Sent Events stream that pushes device state changes and
-/// device-list changes to the UI (spec §8). Each browser connection gets a bridge actor
+/// device-list changes to the UI. Each browser connection gets a bridge actor
 /// subscribed to the actor-system EventStream; its messages are streamed as SSE frames.
 /// </summary>
 public static class ServerSentEvents

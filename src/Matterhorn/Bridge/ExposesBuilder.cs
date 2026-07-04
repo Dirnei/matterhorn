@@ -2,7 +2,7 @@ using Matterhorn.Matter;
 
 namespace Matterhorn.Bridge;
 
-/// <summary>Builds Z2M-style exposes from the clusters a device actually reports (spec §7).</summary>
+/// <summary>Builds Z2M-style exposes from the clusters a device actually reports.</summary>
 public static class ExposesBuilder
 {
     private const int Published = 1, Set = 2, Get = 4, All = 7;

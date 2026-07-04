@@ -10,8 +10,8 @@ using Matterhorn.Mqtt;
 namespace Matterhorn.Bridge;
 
 /// <summary>
-/// Owns the controller connection, device lifecycle, and the <c>bridge/*</c> control-plane
-/// (spec §9). Creates one <see cref="MatterEndpointActor"/> per logical device and answers
+/// Owns the controller connection, device lifecycle, and the <c>bridge/*</c> control-plane.
+/// Creates one <see cref="MatterEndpointActor"/> per logical device and answers
 /// REST queries against the live model.
 /// </summary>
 public sealed class MatterGatewayActor : ReceiveActor
@@ -64,7 +64,7 @@ public sealed class MatterGatewayActor : ReceiveActor
     protected override void PreStart()
     {
         // bridge/state online + retained state are (re)published on MqttConnected, so they land
-        // reliably once the broker is actually connected (spec §4).
+        // reliably once the broker is actually connected.
         var (queue, _) = IngestionPipeline.Run(Context.System, Self);
         _queue = queue;
         // Pump the controller's event stream into the pipeline queue.

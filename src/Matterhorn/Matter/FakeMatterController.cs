@@ -5,7 +5,7 @@ using Matterhorn.Devices;
 
 namespace Matterhorn.Matter;
 
-/// <summary>In-memory <see cref="IMatterController"/> for tests and dev (spec §11).</summary>
+/// <summary>In-memory <see cref="IMatterController"/> for tests and dev.</summary>
 public sealed class FakeMatterController : IMatterController
 {
     private readonly Channel<MatterEvent> _channel = Channel.CreateUnbounded<MatterEvent>();

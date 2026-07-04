@@ -3,7 +3,7 @@ using Matterhorn.Devices;
 namespace Matterhorn.Matter;
 
 /// <summary>
-/// The seam over the upstream Matter controller (spec §3). All controller I/O sits
+/// The seam over the upstream Matter controller. All controller I/O sits
 /// behind this interface so the upstream is swappable (matterjs ↔ python-matter-server).
 /// </summary>
 public interface IMatterController

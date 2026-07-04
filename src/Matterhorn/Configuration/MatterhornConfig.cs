@@ -2,7 +2,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace Matterhorn.Configuration;
 
-/// <summary>Strongly-typed service configuration (spec §10).</summary>
+/// <summary>Strongly-typed service configuration.</summary>
 public record MatterhornConfig(
     string ControllerWsUrl, string ControllerKind,
     string MqttHost, int MqttPort, string? MqttUser, string? MqttPassword,

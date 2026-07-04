@@ -12,7 +12,7 @@ public record ExposeEntry(
     string? ValueOn = null, string? ValueOff = null,
     int? ValueMin = null, int? ValueMax = null, string? Unit = null);
 
-/// <summary>A <c>bridge/devices</c> entry — the discovery contract (spec §7).</summary>
+/// <summary>A <c>bridge/devices</c> entry — the discovery contract.</summary>
 public record DeviceDescriptor(
     string FriendlyName, string NodeId, ushort Endpoint,
     string? VendorName, string? ProductName, ushort VendorId, ushort ProductId,

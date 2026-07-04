@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace Matterhorn.Bridge;
 
-/// <summary>Control-plane messages handled by <see cref="MatterGatewayActor"/> (spec §6, §8).</summary>
+/// <summary>Control-plane messages handled by <see cref="MatterGatewayActor"/>.</summary>
 public record CommissionRequest(string Code, string Transaction);
 public record RemoveRequest(string FriendlyName, string Transaction);
 public record GetDevices;

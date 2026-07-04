@@ -12,7 +12,7 @@ namespace Matterhorn.Matter;
 public sealed record ServerResult(int MessageId, ulong? NodeId, string? Error);
 
 /// <summary>
-/// Pure WS-JSON ⇄ domain codec for the python-matter-server protocol (spec §3, §13).
+/// Pure WS-JSON ⇄ domain codec for the python-matter-server protocol.
 /// Isolated here so the wire format stays behind <see cref="IMatterController"/>.
 /// </summary>
 public static class MatterServerProtocol
@@ -26,7 +26,7 @@ public static class MatterServerProtocol
             message_id = messageId.ToString(),
             command = "commission_with_code",
             // network_only forces on-network (IP) commissioning: a software controller has no
-            // Bluetooth radio, and a multi-admin device we're joining is already on Wi-Fi (spec §6).
+            // Bluetooth radio, and a multi-admin device we're joining is already on Wi-Fi.
             args = new { code = setupCode, network_only = true },
         });
 

@@ -6,8 +6,8 @@ namespace Matterhorn.Mqtt;
 
 /// <summary>
 /// Translates an inbound MQTT command message into the matching gateway message and forwards
-/// it — the write-path mirror of the REST facade, so control is identical over MQTT and REST
-/// (spec §2, §4, §6). Pure and side-effect-free apart from the <c>Tell</c>, so it is unit-tested
+/// it — the write-path mirror of the REST facade, so control is identical over MQTT and REST.
+/// Pure and side-effect-free apart from the <c>Tell</c>, so it is unit-tested
 /// against a probe gateway without a broker.
 /// </summary>
 public static class MqttCommandRouter
@@ -60,7 +60,7 @@ public static class MqttCommandRouter
                 if (!string.IsNullOrEmpty(id))
                     gateway.Tell(new RemoveRequest(id, Tx()), ActorRefs.NoSender);
                 break;
-            // "rename" has no gateway handler in Phase 1 (documented follow-up, spec §6).
+            // "rename" is parsed but has no gateway handler yet (known follow-up).
         }
     }
 }

@@ -9,8 +9,8 @@ namespace Matterhorn.Matter;
 /// <see cref="IMatterController"/> over a python-matter-server WebSocket. Fire-and-forget commands
 /// (<c>start_listening</c>, <c>device_command</c>) and request/response commands (<c>commission_with_code</c>,
 /// <c>remove_node</c>, correlated by message id via <see cref="PendingRequests"/>) both share the one
-/// socket; the receive loop routes replies to waiters and events to the stream (spec §13).
-/// Phase-1 automated tests use <see cref="FakeMatterController"/> (spec §11).
+/// socket; the receive loop routes replies to waiters and events to the stream.
+/// Phase-1 automated tests use <see cref="FakeMatterController"/>.
 /// </summary>
 public sealed class PythonMatterServerController(string wsUrl) : IMatterController
 {

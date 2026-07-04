@@ -5,7 +5,7 @@ namespace Matterhorn.Devices;
 
 /// <summary>
 /// Read path: turns Matter cluster/attribute readings into Z2M-shaped semantic
-/// properties (spec §5). Table-driven; unmappable readings are skipped.
+/// properties. Table-driven; unmappable readings are skipped.
 /// </summary>
 public static class PropertyMapping
 {

@@ -20,7 +20,7 @@ var mqttClient = new HiveMQClient(new HiveMQClientOptionsBuilder()
     .WithBroker(cfg.MqttHost).WithPort(cfg.MqttPort)
     .WithClientId($"matterhorn-{Guid.NewGuid():N}").Build());
 
-// Controller seam (swappable). "fake" is the in-memory dev/test controller (spec §11).
+// Controller seam (swappable). "fake" is the in-memory dev/test controller.
 IMatterController controller = cfg.ControllerKind switch
 {
     "fake" => new FakeMatterController(),
@@ -36,7 +36,7 @@ builder.Services.AddSingleton<IConfigureApiKey>(new StaticApiKey(cfg.ApiKey));
 
 // Contract-first controllers (generated from contracts/matterhorn.openapi.yaml). The generated
 // DTOs carry their snake_case wire names via [JsonPropertyName]; we only omit null fields so the
-// exposes shape matches the MQTT projection (spec §7).
+// exposes shape matches the MQTT projection.
 builder.Services
     .AddControllers()
     .AddJsonOptions(o => o.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull);

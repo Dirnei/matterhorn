@@ -1,26 +1,59 @@
 # Matterhorn
 
-A standalone service that bridges Matter devices to MQTT — the
-Zigbee2MQTT of Matter. It consumes a Matter controller over WebSocket and exposes Matter
-devices as a **Z2M-shaped MQTT surface** (event bus + retained state) plus a thin **REST**
-facade. MQTT and REST are two projections of one internal actor model — nothing lives in one
-that isn't in the other.
+**A neutral bridge that puts your Matter devices on MQTT — the Zigbee2MQTT of Matter.**
 
-## Run locally against the in-memory (fake) controller
+Matterhorn commissions Matter devices (or joins ones already paired to Apple Home / Google via
+Matter's multi-admin), and re-publishes them as a Zigbee2MQTT-shaped **MQTT** surface, a **REST**
+API, and a small **web dashboard**. MQTT and REST are two projections of one internal model —
+anything you can see or do on one, you can on the other.
 
-Boots with no Matter hardware and no BLE. An MQTT broker is optional — if none is running,
-publishes are logged and dropped, and the host still starts.
+## Why
 
-```bash
-Controller__Kind=fake Mqtt__Host=localhost dotnet run --project src/Matterhorn
-# REST facade on http://localhost:8090
-curl http://localhost:8090/api/bridge/info      # -> {"service":"matterhorn"}
+Matter was supposed to end smart-home lock-in, but in practice a device ends up tied to whatever
+app commissioned it — Apple Home, Google Home, Alexa — and getting it into your *own* automations
+usually means routing through that vendor's hub or cloud.
+
+Zigbee has [Zigbee2MQTT](https://www.zigbee2mqtt.io/): a neutral bridge that just exposes every
+device on plain MQTT so you can wire it into anything. Matter didn't have an equivalent. Matterhorn
+is that missing piece — a vendor-neutral bridge that speaks Matter on one side and MQTT/REST on the
+other. Because Matter supports **multi-admin**, a bulb you already paired to Apple Home can be
+*shared* to Matterhorn as well, so it lives in both worlds at once — no factory reset, no picking one
+ecosystem.
+
+## What you get
+
+- **Commissioning** of Matter-over-IP devices (Wi-Fi, or Thread via a border router), including
+  **multi-admin** sharing from an existing ecosystem.
+- **MQTT**: retained per-device state, a `bridge/devices` discovery topic, and `/set` control —
+  the Zigbee2MQTT topic shape.
+- **REST**: an OpenAPI-described API (`GET/PATCH /api/devices/...`) with Swagger UI.
+- **Web dashboard**: live device cards over Server-Sent Events, with controls generated from each
+  device's capabilities — on/off, brightness, **color temperature**, an **RGB colour wheel**,
+  sensor readouts (occupancy, temperature, humidity, battery), and a **Wi-Fi / Thread** transport
+  badge.
+
+## How it works
+
+```
+Matter device ──(Matter/IP)── python-matter-server ──(WebSocket)── Matterhorn ──┬── MQTT broker
+                                                                                ├── REST API
+                                                                                └── Web dashboard (SSE)
 ```
 
-## Test locally with Docker
+Matterhorn does **not** speak Matter to devices directly. It drives a
+[python-matter-server](https://github.com/home-assistant-libs/python-matter-server) instance (the
+same controller Home Assistant uses), which does the commissioning and low-level Matter work.
 
-Brings up **EMQX** + Matterhorn (fake controller, demo devices seeded). Host ports are in the
-16000+ range so they don't collide with defaults.
+That controller must run on a **Linux host on your LAN with host networking** — Matter commissioning
+needs mDNS + IPv6 link-local access to the device, which Docker Desktop on Windows/macOS can't
+provide. A **Raspberry Pi** (64-bit OS, IPv6 enabled) is ideal. Matterhorn itself can run anywhere
+that can reach that host.
+
+## Running it
+
+### Quick look, no hardware
+
+Boots Matterhorn with an in-memory fake controller and two seeded demo devices, plus an MQTT broker:
 
 ```bash
 docker compose up --build
@@ -28,84 +61,104 @@ docker compose up --build
 
 | What | Where |
 |---|---|
-| Device console (UI) | http://localhost:16090/ |
+| Web dashboard | http://localhost:16090/ |
 | Swagger UI | http://localhost:16090/swagger |
-| REST facade | http://localhost:16090 (e.g. `GET /api/devices`) |
+| REST API | http://localhost:16090 (e.g. `GET /api/devices`) |
 | EMQX dashboard | http://localhost:16083 — login `admin` / `public` |
 | MQTT broker | `localhost:16883`, base topic `matterhorn` |
 
-The **device console** is a small self-contained page (`wwwroot/index.html`) for debugging: it lists
-devices, generates controls from each device's `exposes` (toggle / sliders), pushes live state over
-SSE (`GET /api/events`), and can trigger commissioning. It talks only to the REST API — set the API
-key field if one is configured.
+### With real devices
 
-Two demo devices are seeded: `essentials_bulb_1_1` (on/off + brightness + color_temp) and
-`motion_sensor_2_1` (temperature/humidity/occupancy/battery, updated every ~10s).
-
-Watch retained state in the EMQX dashboard (**Diagnose → WebSocket**, subscribe `matterhorn/#`),
-or with a CLI. Control a device identically over **MQTT or REST**:
+**1. Run the Matter controller on your Linux host / Pi:**
 
 ```bash
-# via MQTT (publish to /set)
-mqttx pub -h localhost -p 16883 -t 'matterhorn/essentials_bulb_1_1/set' -m '{"state":"OFF"}'
-mqttx pub -h localhost -p 16883 -t 'matterhorn/essentials_bulb_1_1/set/brightness' -m '120'
-
-# via REST — PATCH applies a partial state change, GET reads current state
-curl -X PATCH http://localhost:16090/api/devices/essentials_bulb_1_1 \
-  -H 'content-type: application/json' -d '{"state":"ON"}'
-curl http://localhost:16090/api/devices/essentials_bulb_1_1
+# on the Pi (64-bit OS, IPv6 on):
+docker compose -f docker-compose.matter-server.yml up -d
 ```
 
-The retained `matterhorn/essentials_bulb_1_1` topic updates in response either way.
+**2. Point Matterhorn at it.** Copy the example env and set the controller's address:
 
-## API contract (contract-first)
+```bash
+cp .env.example .env
+# edit .env:
+#   CONTROLLER_KIND=python-matter-server
+#   CONTROLLER_WS_URL=ws://<pi-ip>:5580/ws
+#   DEV_SEED=false
+```
 
-The REST API is generated from an authored OpenAPI contract —
-[`contracts/matterhorn.openapi.yaml`](contracts/matterhorn.openapi.yaml) is the single source of
-truth. On build, NSwag (`src/Matterhorn/nswag.json`) generates the abstract ASP.NET controller
-base + DTOs into `obj/` (not committed); `Api/MatterhornController.cs` implements that base against
-the actor model and maps the internal domain records to the generated wire DTOs. To change the API:
-edit the YAML, rebuild, implement any new operations.
+`.env` is gitignored, so your local setup never lands in the repo. Flip `CONTROLLER_KIND=fake` any
+time to drop back to the demo stack.
 
-**Swagger UI** browses that same contract at **http://localhost:16090/swagger** (the raw YAML is at
-`/openapi/matterhorn.yaml`). Docs are public; the API key, when set, only guards `/api/*`.
+**3. Start Matterhorn** (same command; it now uses your `.env`):
+
+```bash
+docker compose up --build
+```
+
+## Commissioning a device
+
+Open the dashboard and use the **Commission** field:
+
+- **A brand-new device** — enter its setup code (the `MT:…` QR string or the 11-digit manual code).
+- **A device already in Apple Home** (multi-admin) — in the Home app, open the accessory →
+  **Turn On Pairing Mode**, and enter the code it shows you. The device joins Matterhorn's fabric
+  *in addition to* Apple Home; both control it independently.
+
+The device appears on the dashboard once the controller finishes interviewing it (~30–60s).
+
+## Controlling a device — MQTT or REST
+
+Both surfaces are equivalent; the retained `matterhorn/<device>` topic updates either way.
+
+```bash
+# MQTT
+mqttx pub -h localhost -p 16883 -t 'matterhorn/<device>/set' -m '{"state":"ON","brightness":180}'
+mqttx pub -h localhost -p 16883 -t 'matterhorn/<device>/set' -m '{"hue":0,"saturation":254}'   # red
+
+# REST — PATCH a partial state change, GET the current state
+curl -X PATCH http://localhost:16090/api/devices/<device> \
+  -H 'content-type: application/json' -d '{"state":"ON"}'
+curl http://localhost:16090/api/devices/<device>
+```
+
+Colour is expressed the way Matter models it: `hue` and `saturation` (0–254) drive the colour
+wheel, `color_temp` (mireds) is separate, and `brightness` is always its own axis.
 
 ## Configuration
 
-| Env / key | Purpose | Default |
-|---|---|---|
-| `Controller__WsUrl` | Matter controller WebSocket URL | `ws://localhost:5580/ws` |
-| `Controller__Kind` | `fake` \| `python-matter-server` \| `matterjs` | `python-matter-server` |
-| `Mqtt__Host` / `Mqtt__Port` | broker | `localhost` / `1883` |
-| `Mqtt__BaseTopic` | base topic | `matterhorn` |
-| `Rest__Port` | REST port | `8090` |
-| `Rest__ApiKey` | required for REST access when set (sent as `X-Api-Key`) | — (open if unset) |
-| `DevSeed` | seed demo devices via the fake controller (dev/testing only) | `false` |
+Set via `.env` (Docker) or environment variables. The compose file maps the short names on the left
+to the app's settings on the right.
 
-## Integration validation against a matter.js virtual device (manual, spec §11)
+| `.env` (Docker) | App env | Purpose | Default |
+|---|---|---|---|
+| `CONTROLLER_KIND` | `Controller__Kind` | `fake` or `python-matter-server` | `fake` (compose) |
+| `CONTROLLER_WS_URL` | `Controller__WsUrl` | Matter controller WebSocket URL | `ws://localhost:5580/ws` |
+| `DEV_SEED` | `DevSeed` | seed demo devices (fake controller only) | `true` (compose) |
+| — | `Mqtt__Host` / `Mqtt__Port` | MQTT broker | `localhost` / `1883` |
+| — | `Mqtt__BaseTopic` | base topic | `matterhorn` |
+| — | `Rest__ApiKey` | if set, `/api/*` requires it via `X-Api-Key` | unset (open) |
 
-Validates the real WS adapter end-to-end with **zero hardware and zero BLE**:
+The API key, when set, guards only `/api/*` — the dashboard has a field for it; Swagger and the raw
+contract stay public.
 
-1. Run a **matter.js virtual example device** (a fake OnOff/dimmable bulb) on the LAN.
-2. Commission it **over IP** (on-network commissioning, no Bluetooth needed for a software
-   node) via your Matter server (python-matter-server / matterjs-server).
-3. Point Matterhorn at that server:
-   ```bash
-   Controller__Kind=python-matter-server Controller__WsUrl=ws://<server>:5580/ws \
-     Mqtt__Host=<broker> dotnet run --project src/Matterhorn
-   ```
-4. Verify:
-   - `matterhorn/bridge/devices` lists the bulb with `state` + `brightness` exposes;
-   - publishing `{"state":"ON"}` to `matterhorn/<name>/set` turns the device on;
-   - `GET /api/devices` (with `X-Api-Key` when configured) returns the same list.
+## REST API (contract-first)
 
-## Status & known follow-ups
+The API is generated from an authored OpenAPI document —
+[`contracts/matterhorn.openapi.yaml`](contracts/matterhorn.openapi.yaml) is the source of truth. On
+build, NSwag generates the ASP.NET controller base + DTOs; `Api/MatterhornController.cs` implements
+them against the internal model. To change the API: edit the YAML, rebuild, implement any new
+operations. Browse it live at `/swagger`.
 
-Phase 1: controller WS → actors → MQTT + REST, read + control over both surfaces, plus the
-commission trigger. Documented follow-ups (spec §13):
+## Development
 
-- Live `node_added` / `commission_with_code` / `remove_node` wiring in
-  `Matter/PythonMatterServerController.cs` (stubbed; the fake controller covers automated tests).
-- `bridge/request/rename` handling (parsed but no gateway handler yet).
-- Per-device stream conflation refinement in `Bridge/IngestionPipeline.cs`.
+```bash
+dotnet build                                   # build (regenerates the API from the contract)
+dotnet test src/Matterhorn.Test                # run the test suite
+```
 
+For iterating on the app without Docker you can run it directly against a controller:
+
+```bash
+Controller__Kind=python-matter-server Controller__WsUrl=ws://<pi-ip>:5580/ws \
+  dotnet run --project src/Matterhorn        # REST + dashboard on http://localhost:5006
+```
