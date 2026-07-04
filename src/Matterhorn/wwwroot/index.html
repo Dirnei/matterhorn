@@ -95,7 +95,40 @@
   .toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:var(--alpenglow); color:#fff; padding:8px 14px; border-radius:8px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:30; }
   .toast.show { opacity:1; }
 
-  @media (prefers-reduced-motion: reduce) { .switch .slot,.switch .knob{transition:none;} .link.live .bench{animation:none;} }
+  .st-tools { display:flex; align-items:center; gap:10px; }
+  .kebab { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px;
+           background:transparent; border:none; padding:0; font-size:18px; line-height:1; color:var(--muted);
+           border-radius:7px; transition:background .15s, color .15s; }
+  .kebab:hover { background:var(--surface2); color:var(--ink); }
+
+  .menu { position:absolute; z-index:40; min-width:154px; background:var(--surface); border:1px solid var(--line);
+          border-radius:10px; box-shadow:0 10px 28px rgba(0,0,0,.2), 0 2px 6px rgba(0,0,0,.08);
+          padding:5px; display:none; transform-origin:top right; }
+  .menu.open { display:block; animation:menuIn .14s cubic-bezier(.2,.7,.3,1); }
+  @keyframes menuIn { from{ opacity:0; transform:translateY(-4px) scale(.97); } to{ opacity:1; transform:none; } }
+  .menu button { display:flex; align-items:center; gap:9px; width:100%; text-align:left; background:transparent;
+                 border:none; padding:8px 10px; border-radius:6px; color:var(--ink); font-size:13px; }
+  .menu button:hover { background:var(--surface2); }
+  .menu button.danger { color:var(--alpenglow); margin-top:4px; padding-top:9px; border-top:1px solid var(--line); }
+
+  .name-edit { font-family:var(--mono); font-size:14px; padding:3px 6px; width:100%;
+               border:1px solid var(--enzian); border-radius:6px; background:var(--surface2); color:var(--ink); }
+
+  .modal-backdrop { position:fixed; inset:0; background:rgba(10,16,22,.5); -webkit-backdrop-filter:blur(1px); backdrop-filter:blur(1px);
+                    z-index:50; display:none; align-items:center; justify-content:center; padding:20px; }
+  .modal-backdrop.open { display:flex; }
+  .modal { background:var(--surface); border:1px solid var(--line); border-radius:14px; max-width:380px; width:100%;
+           padding:22px; box-shadow:0 20px 50px rgba(0,0,0,.32), 0 4px 12px rgba(0,0,0,.12);
+           animation:modalIn .16s cubic-bezier(.2,.7,.3,1); }
+  @keyframes modalIn { from{ opacity:0; transform:translateY(6px) scale(.98); } to{ opacity:1; transform:none; } }
+  .modal h3 { margin:0 0 8px; font-size:16px; font-weight:650; }
+  .modal p { margin:0 0 18px; color:var(--muted); line-height:1.5; }
+  .modal .actions { display:flex; justify-content:flex-end; gap:10px; }
+  .modal .actions button:hover { background:var(--line); }
+  .modal .danger { background:var(--alpenglow); border-color:transparent; color:#fff; font-weight:600; }
+  .modal .danger:hover { filter:brightness(1.08); background:var(--alpenglow); }
+
+  @media (prefers-reduced-motion: reduce) { .switch .slot,.switch .knob{transition:none;} .link.live .bench{animation:none;} .menu.open,.modal{animation:none;} }
 </style>
 </head>
 <body>
@@ -161,20 +194,108 @@ async function patch(name, body){
   catch(e){ if(e.message!=='401') toast('Set failed'); }
 }
 
-async function rename(name){
-  const to = prompt('Rename "'+name+'" to:', name);
-  if (to===null) return;               // cancelled
-  const trimmed = to.trim();
-  if (!trimmed || trimmed===name) return;
-  try {
-    const r = await api('/api/devices/'+encodeURIComponent(name)+'/rename',
-      { method:'POST', body:JSON.stringify({ to:trimmed }) });
-    if (r.status===409) return toast('That name is already taken');
-    if (r.status===400) return toast('That name can\'t be used');
-    if (!r.ok) return toast('Rename failed');
-    toast('Renamed');                  // device list refreshes via the SSE "devices" event
-  } catch(e){ if(e.message!=='401') toast('Rename failed'); }
+// ---- per-device actions: a single body-level menu + modal (the card clips overflow) ----
+const devMenu = document.createElement('div');
+devMenu.className = 'menu';
+devMenu.innerHTML = `<button data-act="rename">✎ Rename</button><button data-act="unpair" class="danger">⌫ Unpair…</button>`;
+document.body.appendChild(devMenu);
+let menuTarget = null;
+
+function openMenu(btn, name){
+  menuTarget = name;
+  devMenu.classList.add('open');                       // display first so offsetWidth is measurable
+  const r = btn.getBoundingClientRect();
+  devMenu.style.top  = (window.scrollY + r.bottom + 4) + 'px';
+  devMenu.style.left = (window.scrollX + r.right - devMenu.offsetWidth) + 'px';
 }
+function closeMenu(){ devMenu.classList.remove('open'); menuTarget = null; }
+
+devMenu.addEventListener('click', e=>{
+  const act = e.target.closest('button')?.dataset.act; if(!act) return;
+  const name = menuTarget; closeMenu();
+  if (act==='rename') startRename(name);
+  else if (act==='unpair') openUnpair(name);
+});
+document.addEventListener('click', e=>{
+  if (devMenu.classList.contains('open') && !devMenu.contains(e.target) && !e.target.classList.contains('kebab')) closeMenu();
+});
+
+function startRename(name){
+  const el = document.getElementById('dev-'+cssId(name)); if(!el) return;
+  const nameEl = el.querySelector('.name'); if(!nameEl || nameEl.querySelector('input')) return;
+  const input = document.createElement('input');
+  input.className = 'name-edit'; input.value = name; input.setAttribute('aria-label','New device name');
+  nameEl.replaceChildren(input); input.focus(); input.select();
+  let done = false;
+  const restore = ()=>{ nameEl.textContent = name; };          // SSE 'devices' will re-render with the real name
+  const cancel  = ()=>{ if(done) return; done = true; restore(); };
+  const commit  = async ()=>{
+    if(done) return; const to = input.value.trim();
+    if(!to || to===name){ done = true; restore(); return; }
+    done = true;
+    try {
+      const r = await api('/api/devices/'+encodeURIComponent(name)+'/rename', { method:'POST', body:JSON.stringify({to}) });
+      if (r.status===409) toast('That name is already taken');
+      else if (r.status===400) toast('That name can’t be used');
+      else if (!r.ok) toast('Rename failed');
+      else toast('Renamed');
+    } catch(e){ if(e.message!=='401') toast('Rename failed'); }
+    restore();
+  };
+  input.addEventListener('keydown', e=>{
+    if (e.key==='Enter'){ e.preventDefault(); commit(); }
+    else if (e.key==='Escape'){ e.preventDefault(); cancel(); }
+  });
+  input.addEventListener('blur', cancel);
+}
+
+// ---- unpair confirmation modal ----
+const backdrop = document.createElement('div');
+backdrop.className = 'modal-backdrop';
+backdrop.innerHTML =
+  `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="unpairTitle">
+     <h3 id="unpairTitle">Unpair device?</h3>
+     <p id="unpairBody"></p>
+     <div class="actions"><button data-act="cancel">Cancel</button><button data-act="confirm" class="danger">Unpair</button></div>
+   </div>`;
+document.body.appendChild(backdrop);
+let unpairTarget = null;
+
+function openUnpair(name){
+  unpairTarget = name;
+  backdrop.querySelector('#unpairTitle').textContent = 'Unpair “'+name+'”?';
+  backdrop.querySelector('#unpairBody').textContent =
+    'It will be removed from the Matter fabric and must be re-paired with its setup code to return.';
+  backdrop.classList.add('open');
+  backdrop.querySelector('[data-act="confirm"]').focus();
+}
+function closeUnpair(){ backdrop.classList.remove('open'); unpairTarget = null; }
+
+backdrop.addEventListener('click', e=>{
+  if (e.target===backdrop){ closeUnpair(); return; }          // backdrop click
+  const act = e.target.closest('button')?.dataset.act; if(!act) return;
+  if (act==='cancel'){ closeUnpair(); return; }
+  if (act==='confirm'){ const name = unpairTarget; closeUnpair(); doUnpair(name); }
+});
+// keep focus inside the modal while it is open (simple two-button trap)
+backdrop.addEventListener('keydown', e=>{
+  if (!backdrop.classList.contains('open') || e.key!=='Tab') return;
+  const btns = [...backdrop.querySelectorAll('button')];
+  const first = btns[0], last = btns[btns.length-1];
+  if (e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
+});
+
+async function doUnpair(name){
+  try {
+    const r = await api('/api/devices/'+encodeURIComponent(name), { method:'DELETE' });
+    if (r.status===404) toast('Device not found');
+    else if (!r.ok) toast('Unpair failed');
+    else toast('Unpairing…');   // the card disappears when the node_removed-driven SSE 'devices' refresh arrives
+  } catch(e){ if(e.message!=='401') toast('Unpair failed'); }
+}
+
+document.addEventListener('keydown', e=>{ if (e.key==='Escape'){ closeMenu(); closeUnpair(); } });
 
 async function loadAll(){
   let list; try { list = await (await api('/api/devices')).json(); } catch(e){ return; }
@@ -203,12 +324,19 @@ function station(d){
   const readonly=d.exposes.filter(e=>(!SETTABLE.has(e.property)||!(e.access&2))&&!skip.has(e.property));
   el.innerHTML =
     `<div class="st-head">
-       <div><div class="name" data-rename title="Click to rename" style="cursor:pointer">${esc(d.friendly_name)}</div>
+       <div><div class="name">${esc(d.friendly_name)}</div>
          <div class="coords">${esc(d.device_type)} · node ${esc(d.node_id)} / ep ${d.endpoint}${d.transport?`<span class="pill">${esc(d.transport)}</span>`:''}</div></div>
-       <span class="bench ${d.reachable?'up':''}" title="${d.reachable?'reachable':'unreachable'}"></span>
+       <div class="st-tools">
+         <span class="bench ${d.reachable?'up':''}" title="${d.reachable?'reachable':'unreachable'}"></span>
+         <button class="kebab" aria-label="Device actions" aria-haspopup="true">⋮</button>
+       </div>
      </div><div class="rows"></div>`;
   const rows=el.querySelector('.rows');
-  el.querySelector('[data-rename]').addEventListener('click', ()=>rename(d.friendly_name));
+  el.querySelector('.kebab').addEventListener('click', ev=>{
+    ev.stopPropagation();
+    if (devMenu.classList.contains('open')) { closeMenu(); return; }
+    openMenu(ev.currentTarget, d.friendly_name);
+  });
   for (const e of settable) rows.appendChild(control(d.friendly_name,e));
   for (const e of readonly) rows.appendChild(readoutRow(e));
   if (hasColor) rows.prepend(colorControl(d.friendly_name));
