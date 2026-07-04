@@ -10,6 +10,9 @@ public record SetReachable(bool Reachable);
 /// <summary>Re-publish current retained state + availability (e.g. after an MQTT reconnect).</summary>
 public record Republish;
 
+/// <summary>Adopt a new friendly name: clear the old retained topics and republish under the new one.</summary>
+public record Rename(string NewName);
+
 /// <summary>Ask an endpoint for its current state; replied to with <see cref="DeviceStateSnapshot"/>.</summary>
 public record GetState;
 public record DeviceStateSnapshot(bool Found, IReadOnlyDictionary<string, object?>? State);

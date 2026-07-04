@@ -62,4 +62,29 @@ public class MatterEndpointActorTests : TestKit
             Assert.Equal("On", fake.Invocations[0].Cmd.CommandName);
         });
     }
+
+    [Fact]
+    public void Rename_clears_old_retained_topics_and_republishes_under_new_name()
+    {
+        var mqtt = new InMemoryMqttPublisher();
+        var actor = Sys.ActorOf(MatterEndpointActor.Props("lamp", 5, 1,
+            new FakeMatterController(), mqtt, _topics));
+
+        // Seed some state so there is a retained payload to migrate.
+        actor.Tell(new ApplyAttribute(new AttributeReading(5, 1, MatterClusters.OnOff, 0,
+            JsonDocument.Parse("true").RootElement)));
+        AwaitAssert(() => Assert.Contains(mqtt.Messages, m => m.Topic == "matterhorn/lamp"));
+
+        actor.Tell(new Rename("desk_bulb"));
+
+        AwaitAssert(() =>
+        {
+            // Old retained state + availability cleared with an empty retained payload.
+            Assert.Contains(mqtt.Messages, m => m.Topic == "matterhorn/lamp" && m.Retained && m.Payload == "");
+            Assert.Contains(mqtt.Messages, m => m.Topic == "matterhorn/lamp/availability" && m.Retained && m.Payload == "");
+            // State republished under the new name.
+            Assert.Contains(mqtt.Messages, m => m.Topic == "matterhorn/desk_bulb" && m.Payload.Contains("\"state\":\"ON\""));
+            Assert.Contains(mqtt.Messages, m => m.Topic == "matterhorn/desk_bulb/availability" && m.Payload == "online");
+        });
+    }
 }

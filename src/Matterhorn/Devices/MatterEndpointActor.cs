@@ -13,7 +13,7 @@ namespace Matterhorn.Devices;
 public sealed class MatterEndpointActor : ReceiveActor
 {
     private readonly ILoggingAdapter _log = Context.GetLogger();
-    private readonly string _name;
+    private string _name;
     private readonly ulong _nodeId;
     private readonly ushort _endpoint;
     private readonly IMatterController _controller;
@@ -36,6 +36,16 @@ public sealed class MatterEndpointActor : ReceiveActor
         Receive<SetReachable>(r => _mqtt.Publish(_topics.Availability(_name), r.Reachable ? "online" : "offline"));
         Receive<Republish>(_ =>
         {
+            if (_state.Count > 0)
+                _mqtt.PublishRetained(_topics.Device(_name), JsonSerializer.Serialize(_state));
+            _mqtt.Publish(_topics.Availability(_name), "online");
+        });
+        Receive<Rename>(msg =>
+        {
+            // Drop the old retained state + availability so the broker stops serving the old name.
+            _mqtt.PublishRetained(_topics.Device(_name), "");
+            _mqtt.PublishRetained(_topics.Availability(_name), "");
+            _name = msg.NewName;
             if (_state.Count > 0)
                 _mqtt.PublishRetained(_topics.Device(_name), JsonSerializer.Serialize(_state));
             _mqtt.Publish(_topics.Availability(_name), "online");
