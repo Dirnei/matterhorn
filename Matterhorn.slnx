@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Matterhorn.Test/Matterhorn.Test.csproj" />
+    <Project Path="src/Matterhorn/Matterhorn.csproj" />
+  </Folder>
+</Solution>

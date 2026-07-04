@@ -1,6 +1,0 @@
-<Solution>
-  <Folder Name="/src/">
-    <Project Path="src/Matter2Mqtt.Test/Matter2Mqtt.Test.csproj" />
-    <Project Path="src/Matter2Mqtt/Matter2Mqtt.csproj" />
-  </Folder>
-</Solution>
