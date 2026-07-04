@@ -60,7 +60,12 @@ public static class MqttCommandRouter
                 if (!string.IsNullOrEmpty(id))
                     gateway.Tell(new RemoveRequest(id, Tx()), ActorRefs.NoSender);
                 break;
-            // "rename" is parsed but has no gateway handler yet (known follow-up).
+            case "rename":
+                var from = root.TryGetProperty("from", out var fr) ? fr.GetString() : null;
+                var to = root.TryGetProperty("to", out var tr) ? tr.GetString() : null;
+                if (!string.IsNullOrEmpty(from) && !string.IsNullOrEmpty(to))
+                    gateway.Tell(new RenameRequest(from, to, Tx()), ActorRefs.NoSender);
+                break;
         }
     }
 }

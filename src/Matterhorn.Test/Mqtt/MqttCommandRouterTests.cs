@@ -55,6 +55,19 @@ public class MqttCommandRouterTests : TestKit
     }
 
     [Fact]
+    public void Rename_request_forwards_RenameRequest()
+    {
+        var gw = CreateTestProbe();
+        MqttCommandRouter.Route(_topics, "matterhorn/bridge/request/rename",
+            """{"from":"bulb_5_1","to":"lamp","transaction":"tx7"}""", gw.Ref);
+
+        var msg = gw.ExpectMsg<RenameRequest>();
+        Assert.Equal("bulb_5_1", msg.FromName);
+        Assert.Equal("lamp", msg.ToName);
+        Assert.Equal("tx7", msg.Transaction);
+    }
+
+    [Fact]
     public void Unrelated_topic_forwards_nothing()
     {
         var gw = CreateTestProbe();
