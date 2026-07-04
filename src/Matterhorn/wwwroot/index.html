@@ -161,6 +161,21 @@ async function patch(name, body){
   catch(e){ if(e.message!=='401') toast('Set failed'); }
 }
 
+async function rename(name){
+  const to = prompt('Rename "'+name+'" to:', name);
+  if (to===null) return;               // cancelled
+  const trimmed = to.trim();
+  if (!trimmed || trimmed===name) return;
+  try {
+    const r = await api('/api/devices/'+encodeURIComponent(name)+'/rename',
+      { method:'POST', body:JSON.stringify({ to:trimmed }) });
+    if (r.status===409) return toast('That name is already taken');
+    if (r.status===400) return toast('That name can\'t be used');
+    if (!r.ok) return toast('Rename failed');
+    toast('Renamed');                  // device list refreshes via the SSE "devices" event
+  } catch(e){ if(e.message!=='401') toast('Rename failed'); }
+}
+
 async function loadAll(){
   let list; try { list = await (await api('/api/devices')).json(); } catch(e){ return; }
   defs.clear(); list.forEach(d=>defs.set(d.friendly_name,d));
@@ -188,11 +203,12 @@ function station(d){
   const readonly=d.exposes.filter(e=>(!SETTABLE.has(e.property)||!(e.access&2))&&!skip.has(e.property));
   el.innerHTML =
     `<div class="st-head">
-       <div><div class="name">${esc(d.friendly_name)}</div>
+       <div><div class="name" data-rename title="Click to rename" style="cursor:pointer">${esc(d.friendly_name)}</div>
          <div class="coords">${esc(d.device_type)} · node ${esc(d.node_id)} / ep ${d.endpoint}${d.transport?`<span class="pill">${esc(d.transport)}</span>`:''}</div></div>
        <span class="bench ${d.reachable?'up':''}" title="${d.reachable?'reachable':'unreachable'}"></span>
      </div><div class="rows"></div>`;
   const rows=el.querySelector('.rows');
+  el.querySelector('[data-rename]').addEventListener('click', ()=>rename(d.friendly_name));
   for (const e of settable) rows.appendChild(control(d.friendly_name,e));
   for (const e of readonly) rows.appendChild(readoutRow(e));
   if (hasColor) rows.prepend(colorControl(d.friendly_name));
