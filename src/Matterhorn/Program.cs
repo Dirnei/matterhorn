@@ -50,6 +50,8 @@ builder.Services.AddAkka("matterhorn", (b, sp) => b
         var names = sp.GetRequiredService<INameStore>();
         var gw = system.ActorOf(MatterGatewayActor.Props(controller, publisher, topics, names), "gateway");
         registry.Register<MatterGatewayActor>(gw);
+        var logBuffer = system.ActorOf(LogBufferActor.Props(), "logbuffer");
+        registry.Register<LogBufferActor>(logBuffer);
     }));
 builder.Services.AddSingleton(sp =>
     new GatewayRef(sp.GetRequiredService<ActorRegistry>().Get<MatterGatewayActor>()));

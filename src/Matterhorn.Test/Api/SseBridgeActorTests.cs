@@ -31,4 +31,19 @@ public class SseBridgeActorTests : TestKit
 
         Assert.Equal("""{"type":"devices"}""", await ch.Reader.ReadAsync());
     }
+
+    [Fact]
+    public async Task Forwards_log_entry_as_sse_json()
+    {
+        var ch = Channel.CreateUnbounded<string>();
+        var actor = Sys.ActorOf(SseBridgeActor.Props(ch.Writer));
+
+        var ts = new DateTimeOffset(2026, 7, 5, 14, 3, 47, TimeSpan.Zero);
+        actor.Tell(new LogEntry(ts, LogCategory.Raw, "attribute_updated", "9/1/6/0 = false", null, LogLevel.Info));
+
+        var msg = await ch.Reader.ReadAsync();
+        Assert.Equal(
+            """{"type":"log","ts":"14:03:47","category":"raw","kind":"attribute_updated","msg":"9/1/6/0 = false","device":null,"level":"info"}""",
+            msg);
+    }
 }
