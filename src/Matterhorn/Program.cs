@@ -7,6 +7,7 @@ using Matterhorn.Api;
 using Matterhorn.Bridge;
 using Matterhorn.Configuration;
 using Matterhorn.Dev;
+using Matterhorn.Groups;
 using Matterhorn.Matter;
 using Matterhorn.Mqtt;
 using Matterhorn.Persistence;
@@ -33,6 +34,7 @@ builder.Services.AddSingleton(topics);
 builder.Services.AddSingleton(mqttClient);
 builder.Services.AddSingleton(controller);
 builder.Services.AddSingleton<INameStore>(new JsonNameStore(cfg.NamesFile));
+builder.Services.AddSingleton<IGroupStore>(new JsonGroupStore(cfg.GroupsFile));
 builder.Services.AddSingleton<IMqttPublisher, HiveMqttPublisher>();
 builder.Services.AddSingleton<IConfigureApiKey>(new StaticApiKey(cfg.ApiKey));
 
@@ -52,9 +54,15 @@ builder.Services.AddAkka("matterhorn", (b, sp) => b
         registry.Register<MatterGatewayActor>(gw);
         var logBuffer = system.ActorOf(LogBufferActor.Props(), "logbuffer");
         registry.Register<LogBufferActor>(logBuffer);
+        var groups = system.ActorOf(GroupsSupervisor.Props(
+            sp.GetRequiredService<IGroupStore>(), gw, publisher, topics), "groups");
+        registry.Register<GroupsSupervisor>(groups);
+        gw.Tell(new RegisterGroups(groups));
     }));
 builder.Services.AddSingleton(sp =>
     new GatewayRef(sp.GetRequiredService<ActorRegistry>().Get<MatterGatewayActor>()));
+builder.Services.AddSingleton(sp =>
+    new GroupsRef(sp.GetRequiredService<ActorRegistry>().Get<GroupsSupervisor>()));
 
 // Owns broker connect/subscribe and routes inbound MQTT commands to the gateway.
 builder.Services.AddHostedService<MqttBridgeService>();

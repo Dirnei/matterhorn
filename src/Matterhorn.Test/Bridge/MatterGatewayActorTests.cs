@@ -256,6 +256,23 @@ public class MatterGatewayActorTests : TestKit
     }
 
     [Fact]
+    public void Rename_to_a_group_name_is_rejected_as_name_taken()
+    {
+        var fake = new FakeMatterController();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(
+            fake, new InMemoryMqttPublisher(), new MqttTopics("matterhorn"), new InMemoryNameStore()));
+        // The gateway learns group names from the supervisor's GroupNamesChanged broadcast.
+        gw.Tell(new Matterhorn.Groups.GroupNamesChanged(new HashSet<string> { "living_room" }));
+        fake.Emit(new NodeAdded(Light(5)));
+        AwaitAssert(() => Assert.Single(gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result));
+
+        var r = gw.Ask<RenameResult>(new RenameRequest("bulb_5_1", "living_room", "tx1")).Result;
+
+        Assert.False(r.Ok);
+        Assert.Equal("name_taken", r.Error);
+    }
+
+    [Fact]
     public void Rename_with_an_empty_slug_is_rejected()
     {
         var fake = new FakeMatterController();

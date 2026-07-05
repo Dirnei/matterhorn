@@ -203,6 +203,7 @@ public sealed class MatterGatewayActor : ReceiveActor
         if (!_byName.TryGetValue(from, out var reg)) return new RenameResult(false, "not_found");
         if (slug == from) return new RenameResult(true, null, slug); // no-op
         if (_byName.ContainsKey(slug)) return new RenameResult(false, "name_taken");
+        if (_groupNames.Contains(slug)) return new RenameResult(false, "name_taken");
 
         var updated = reg with { FriendlyName = slug, Descriptor = reg.Descriptor with { FriendlyName = slug } };
         _byName.Remove(from);
