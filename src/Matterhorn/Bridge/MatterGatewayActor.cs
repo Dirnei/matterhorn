@@ -56,6 +56,10 @@ public sealed class MatterGatewayActor : ReceiveActor
         {
             if (_byName.TryGetValue(s.FriendlyName, out var reg)) reg.Actor.Tell(new ApplySet(s.Payload));
         });
+        Receive<RouteSet>(r =>
+        {
+            if (_byKey.TryGetValue(r.Key, out var reg)) reg.Actor.Tell(new ApplySet(r.Payload));
+        });
         Receive<MqttConnected>(_ => AnnounceAll());
         Receive<GetDevices>(_ => Sender.Tell((IReadOnlyList<DeviceDescriptor>)_byName.Values.Select(r => r.Descriptor).ToList()));
         Receive<GetDeviceState>(g =>

@@ -67,6 +67,31 @@ public class MatterGatewayActorTests : TestKit
     }
 
     [Fact]
+    public void RouteSet_by_key_reaches_the_device()
+    {
+        var fake = new FakeMatterController();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, new InMemoryMqttPublisher(), new MqttTopics("matterhorn")));
+        fake.Emit(new NodeAdded(Light(9)));
+        AwaitAssert(() => Assert.NotEmpty(gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result));
+
+        var payload = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>("""{"state":"ON"}""")!;
+        gw.Tell(new RouteSet((9UL, (ushort)1), payload));
+
+        AwaitAssert(() => Assert.Contains(fake.Invocations, i => i.NodeId == 9 && i.Cmd.CommandName == "On"));
+    }
+
+    [Fact]
+    public void RouteSet_for_unknown_key_is_a_harmless_noop()
+    {
+        var fake = new FakeMatterController();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, new InMemoryMqttPublisher(), new MqttTopics("matterhorn")));
+        gw.Tell(new RouteSet((404UL, (ushort)1),
+            JsonSerializer.Deserialize<Dictionary<string, JsonElement>>("""{"state":"ON"}""")!));
+        ExpectNoMsg(TimeSpan.FromMilliseconds(200));
+        Assert.Empty(fake.Invocations);
+    }
+
+    [Fact]
     public void CommissionRequest_publishes_response_with_node_id()
     {
         var fake = new FakeMatterController { OnCommission = _ => 55 };
