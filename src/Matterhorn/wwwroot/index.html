@@ -137,6 +137,28 @@
   .modal .danger:hover { filter:brightness(1.08); background:var(--alpenglow); }
 
   @media (prefers-reduced-motion: reduce) { .switch .slot,.switch .knob{transition:none;} .link.live .bench{animation:none;} .menu.open,.modal{animation:none;} }
+
+  /* Station Log dock */
+  .dock { position:fixed; left:0; right:0; bottom:0; z-index:25; background:#0f151b; color:#c7d4de;
+          font-family:var(--mono); border-top:1px solid #26313b; box-shadow:0 -6px 20px rgba(0,0,0,.28); }
+  .dock .dhd { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:6px 12px;
+               background:#161f28; border-bottom:1px solid #26313b; cursor:pointer; }
+  .dock .dtitle { color:#8797a5; letter-spacing:.13em; text-transform:uppercase; font-size:10px; font-weight:700; }
+  .dock .dctrls { display:flex; align-items:center; gap:8px; }
+  .dock .dctrls .last { color:#5b6b78; font-size:11px; max-width:38vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .dtoggle { display:flex; border:1px solid #26313b; border-radius:5px; overflow:hidden; font-size:10px; }
+  .dtoggle span { padding:2px 9px; color:#8797a5; cursor:pointer; }
+  .dtoggle span.on { background:var(--enzian); color:#fff; }
+  .dbtn { font-size:10px; color:#8797a5; background:transparent; border:1px solid #26313b; border-radius:5px; padding:2px 8px; cursor:pointer; }
+  .dbtn.active { color:#fff; border-color:var(--enzian); }
+  .dock .dbody { height:180px; overflow-y:auto; padding:7px 12px; font-size:12px; line-height:1.7; }
+  .dock.collapsed .dbody { display:none; }
+  .dock .ln { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .dock .ln .t { color:#5b6b78; }
+  .dock .ln.info .k { color:#6fb0e8; }
+  .dock .ln.ok   .k { color:#8fb974; }
+  .dock .ln.warn .k { color:#d9724b; }
+  main { padding-bottom:210px; }  /* keep the grid clear of the docked console */
 </style>
 </head>
 <body>
@@ -173,6 +195,22 @@
   </g>
 </svg>
 <div class="toast" id="toast"></div>
+
+<div class="dock collapsed" id="dock">
+  <div class="dhd" id="dockHead">
+    <span class="dtitle">▤ Station Log</span>
+    <div class="dctrls" onclick="event.stopPropagation()">
+      <span class="last" id="dockLast">waiting for events…</span>
+      <span class="dtoggle" id="dockMode">
+        <span class="on" data-mode="activity">Activity</span><span data-mode="raw">Raw</span>
+      </span>
+      <button class="dbtn" id="dockPause">pause</button>
+      <button class="dbtn" id="dockClear">clear</button>
+      <button class="dbtn" id="dockToggle">▲</button>
+    </div>
+  </div>
+  <div class="dbody" id="dockBody"></div>
+</div>
 
 <script src="iro.min.js"></script>
 <script>
@@ -479,6 +517,7 @@ function connect(){
     let m; try{ m=JSON.parse(ev.data); }catch{ return; }
     if (m.type==='state'){ states.set(m.device,m.state); applyState(m.device); }
     else if (m.type==='devices'){ loadAll(); }
+    else if (m.type==='log'){ dockPush(m); }
   };
 }
 
@@ -501,6 +540,43 @@ if (ridge && !matchMedia('(prefers-reduced-motion: reduce)').matches){
   ridge.style.strokeDasharray=len; ridge.style.strokeDashoffset=len;
   ridge.animate([{strokeDashoffset:len},{strokeDashoffset:0}],{duration:1400,easing:'ease-out',fill:'forwards'});
 }
+
+// ---- Station Log dock ----
+const dock={el:document.getElementById('dock'),body:document.getElementById('dockBody'),
+  last:document.getElementById('dockLast'),mode:'activity',paused:false,
+  buf:{activity:[],raw:[]},cap:250};
+function dockRender(){
+  const rows=dock.buf[dock.mode];
+  dock.body.innerHTML=rows.map(e=>
+    `<div class="ln ${e.level}"><span class="t">${e.ts}</span> `+
+    `<span class="k">${esc(e.kind)}</span> ${esc(e.msg)}`+
+    `${e.device?` <span class="t">· ${esc(e.device)}</span>`:''}</div>`).join('');
+  if(!dock.paused) dock.body.scrollTop=dock.body.scrollHeight;
+}
+function dockPush(e){
+  const arr=dock.buf[e.category]; if(!arr) return;
+  arr.push(e); if(arr.length>dock.cap) arr.shift();
+  dock.last.textContent=`last: ${e.kind} · ${e.ts}`;
+  if(e.category===dock.mode && !dock.paused) dockRender();
+}
+document.getElementById('dockMode').addEventListener('click',ev=>{
+  const m=ev.target.dataset.mode; if(!m) return;
+  dock.mode=m;
+  [...ev.currentTarget.children].forEach(s=>s.classList.toggle('on',s.dataset.mode===m));
+  dockRender();
+});
+document.getElementById('dockPause').addEventListener('click',ev=>{
+  dock.paused=!dock.paused; ev.target.classList.toggle('active',dock.paused);
+  ev.target.textContent=dock.paused?'resume':'pause'; if(!dock.paused) dockRender();
+});
+document.getElementById('dockClear').addEventListener('click',()=>{
+  dock.buf[dock.mode]=[]; dockRender();
+});
+function dockToggleCollapse(){
+  const c=dock.el.classList.toggle('collapsed');
+  document.getElementById('dockToggle').textContent=c?'▲':'▼';
+}
+document.getElementById('dockHead').addEventListener('click',dockToggleCollapse);
 
 connect();
 loadAll();
