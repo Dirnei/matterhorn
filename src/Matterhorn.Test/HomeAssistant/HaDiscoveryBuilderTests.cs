@@ -94,4 +94,72 @@ public class HaDiscoveryBuilderTests
     {
         Assert.Empty(HaDiscoveryBuilder.Build(Descriptor("mystery_1_1"), Topics, "homeassistant"));
     }
+
+    [Fact]
+    public void Temperature_expose_produces_a_sensor_config()
+    {
+        var temp = new ExposeEntry("numeric", "temperature", 1, Unit: "°C");
+        var msg = Assert.Single(HaDiscoveryBuilder.Build(Descriptor("climate_1_1", temp), Topics, "homeassistant"));
+
+        Assert.Equal("homeassistant/sensor/matterhorn_1_1/temperature/config", msg.Topic);
+        var p = JsonDocument.Parse(msg.Payload).RootElement;
+        Assert.Equal("matterhorn_1_1_temperature", p.GetProperty("unique_id").GetString());
+        Assert.Equal("temperature", p.GetProperty("name").GetString());
+        Assert.Equal("temperature", p.GetProperty("device_class").GetString());
+        Assert.Equal("°C", p.GetProperty("unit_of_measurement").GetString());
+        Assert.Equal("measurement", p.GetProperty("state_class").GetString());
+        Assert.Equal("{{ value_json.temperature }}", p.GetProperty("value_template").GetString());
+        Assert.Equal("matterhorn/climate_1_1", p.GetProperty("state_topic").GetString());
+    }
+
+    [Fact]
+    public void Contact_expose_produces_an_inverted_door_binary_sensor()
+    {
+        var contact = new ExposeEntry("binary", "contact", 1);
+        var msg = Assert.Single(HaDiscoveryBuilder.Build(Descriptor("window_1_1", contact), Topics, "homeassistant"));
+
+        Assert.Equal("homeassistant/binary_sensor/matterhorn_1_1/contact/config", msg.Topic);
+        var p = JsonDocument.Parse(msg.Payload).RootElement;
+        Assert.Equal("door", p.GetProperty("device_class").GetString());
+        // Matter/Z2M semantics: contact=true means closed; HA's door class: ON means open.
+        Assert.Equal("{{ 'ON' if not value_json.contact else 'OFF' }}", p.GetProperty("value_template").GetString());
+    }
+
+    [Fact]
+    public void Occupancy_expose_produces_an_occupancy_binary_sensor()
+    {
+        var occupancy = new ExposeEntry("binary", "occupancy", 1);
+        var msg = Assert.Single(HaDiscoveryBuilder.Build(Descriptor("motion_1_1", occupancy), Topics, "homeassistant"));
+
+        Assert.Equal("homeassistant/binary_sensor/matterhorn_1_1/occupancy/config", msg.Topic);
+        var p = JsonDocument.Parse(msg.Payload).RootElement;
+        Assert.Equal("occupancy", p.GetProperty("device_class").GetString());
+        Assert.Equal("{{ 'ON' if value_json.occupancy else 'OFF' }}", p.GetProperty("value_template").GetString());
+    }
+
+    [Fact]
+    public void Multi_sensor_device_produces_one_config_per_property()
+    {
+        var exposes = new ExposeEntry[]
+        {
+            new("numeric", "temperature", 1, Unit: "°C"),
+            new("numeric", "humidity", 1, Unit: "%"),
+            new("numeric", "battery", 1, ValueMin: 0, ValueMax: 100, Unit: "%"),
+        };
+        var msgs = HaDiscoveryBuilder.Build(Descriptor("climate_1_1", exposes), Topics, "homeassistant");
+
+        Assert.Equal(3, msgs.Count);
+        Assert.Contains(msgs, m => m.Topic == "homeassistant/sensor/matterhorn_1_1/humidity/config");
+        Assert.Contains(msgs, m => m.Topic == "homeassistant/sensor/matterhorn_1_1/battery/config");
+    }
+
+    [Fact]
+    public void Config_topics_are_stable_across_renames()
+    {
+        var before = HaDiscoveryBuilder.Build(Descriptor("bulb_1_1", State, Brightness), Topics, "homeassistant");
+        var after = HaDiscoveryBuilder.Build(Descriptor("kitchen_lamp", State, Brightness), Topics, "homeassistant");
+
+        Assert.Equal(before.Select(m => m.Topic), after.Select(m => m.Topic)); // same retained topics
+        Assert.Contains("matterhorn/kitchen_lamp", after[0].Payload); // payloads follow the new name
+    }
 }

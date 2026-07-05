@@ -25,7 +25,49 @@ public static class HaDiscoveryBuilder
             list.Add(props.ContainsKey("brightness") || props.ContainsKey("color_temp") || props.ContainsKey("hue")
                 ? Light(d, topics, prefix, id, props)
                 : Switch(d, topics, prefix, id));
+        // Matter/Z2M semantics: contact=true means closed; HA's door class: ON means open.
+        if (props.ContainsKey("contact"))
+            list.Add(BinarySensor(d, topics, prefix, id, "contact", "door",
+                "{{ 'ON' if not value_json.contact else 'OFF' }}"));
+        if (props.ContainsKey("occupancy"))
+            list.Add(BinarySensor(d, topics, prefix, id, "occupancy", "occupancy",
+                "{{ 'ON' if value_json.occupancy else 'OFF' }}"));
+        foreach (var (property, deviceClass, unit) in SensorRules)
+            if (props.ContainsKey(property))
+                list.Add(Sensor(d, topics, prefix, id, property, deviceClass, unit));
         return list;
+    }
+
+    private static readonly (string Property, string DeviceClass, string Unit)[] SensorRules =
+    [
+        ("temperature", "temperature", "°C"),
+        ("humidity", "humidity", "%"),
+        ("illuminance", "illuminance", "lx"),
+        ("battery", "battery", "%"),
+    ];
+
+    private static DiscoveryMessage BinarySensor(DeviceDescriptor d, MqttTopics topics, string prefix, string id,
+        string property, string deviceClass, string valueTemplate)
+    {
+        var p = Common(d, topics, id, $"{id}_{property}");
+        p["name"] = property;
+        p["state_topic"] = topics.Device(d.FriendlyName);
+        p["value_template"] = valueTemplate;
+        p["device_class"] = deviceClass;
+        return new($"{prefix}/binary_sensor/{id}/{property}/config", JsonSerializer.Serialize(p, JsonDefaults.SnakeCase));
+    }
+
+    private static DiscoveryMessage Sensor(DeviceDescriptor d, MqttTopics topics, string prefix, string id,
+        string property, string deviceClass, string unit)
+    {
+        var p = Common(d, topics, id, $"{id}_{property}");
+        p["name"] = property;
+        p["state_topic"] = topics.Device(d.FriendlyName);
+        p["value_template"] = $"{{{{ value_json.{property} }}}}";
+        p["device_class"] = deviceClass;
+        p["unit_of_measurement"] = unit;
+        p["state_class"] = "measurement";
+        return new($"{prefix}/sensor/{id}/{property}/config", JsonSerializer.Serialize(p, JsonDefaults.SnakeCase));
     }
 
     private static DiscoveryMessage Light(DeviceDescriptor d, MqttTopics topics, string prefix, string id,
