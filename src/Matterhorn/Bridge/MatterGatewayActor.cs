@@ -45,8 +45,11 @@ public sealed class MatterGatewayActor : ReceiveActor
         Receive<NodeRemoved>(OnNodeRemoved);
         Receive<AttributeChanged>(ac =>
         {
-            if (_byKey.TryGetValue((ac.Reading.NodeId, ac.Reading.Endpoint), out var reg))
-                reg.Actor.Tell(new ApplyAttribute(ac.Reading));
+            var r = ac.Reading;
+            Log(LogCategory.Raw, "attribute_updated",
+                $"{r.NodeId}/{r.Endpoint}/{r.ClusterId}/{r.AttributeId} = {r.Value.GetRawText()}");
+            if (_byKey.TryGetValue((r.NodeId, r.Endpoint), out var reg))
+                reg.Actor.Tell(new ApplyAttribute(r));
         });
         Receive<ReachabilityChanged>(OnReachabilityChanged);
         Receive<SetDevice>(s =>
@@ -84,6 +87,7 @@ public sealed class MatterGatewayActor : ReceiveActor
     private void OnNodeAdded(NodeAdded msg)
     {
         var info = msg.Endpoint;
+        Log(LogCategory.Raw, "node_added", $"node {info.NodeId} · {info.ProductName}", level: LogLevel.Ok);
         var name = _overrides.TryGetValue((info.NodeId, info.Endpoint), out var custom)
             ? custom
             : FriendlyName.Default(info.ProductName, info.NodeId, info.Endpoint);
@@ -99,10 +103,12 @@ public sealed class MatterGatewayActor : ReceiveActor
         _byName[name] = reg;
         PublishDevices();
         PublishEvent("device_joined", new { friendly_name = name });
+        Log(LogCategory.Activity, "joined", $"{name} joined · node {info.NodeId}", device: name, level: LogLevel.Ok);
     }
 
     private void OnNodeRemoved(NodeRemoved msg)
     {
+        Log(LogCategory.Raw, "node_removed", $"node {msg.NodeId}");
         // node_removed carries only the node id, so drop every endpoint registered under that node.
         var keys = _byKey.Keys.Where(k => k.Item1 == msg.NodeId).ToList();
         if (keys.Count == 0) return;
@@ -115,6 +121,7 @@ public sealed class MatterGatewayActor : ReceiveActor
             // Drop any persisted name override for the departed endpoint so names.json doesn't grow forever.
             prunedOverride |= _overrides.Remove(key);
             PublishEvent("device_leave", new { friendly_name = reg.FriendlyName });
+            Log(LogCategory.Activity, "removed", $"{reg.FriendlyName} removed", device: reg.FriendlyName);
         }
         if (prunedOverride) SaveOverrides();
         PublishDevices();
@@ -122,12 +129,19 @@ public sealed class MatterGatewayActor : ReceiveActor
 
     // Commissioning can take 30-60s. Run it off the actor and pipe the outcome back as CommissionDone
     // so the gateway keeps serving device queries and attribute routing while it's in flight.
-    private void OnCommission(CommissionRequest req) =>
+    private void OnCommission(CommissionRequest req)
+    {
+        Log(LogCategory.Activity, "commission", "setup code accepted");
+        Log(LogCategory.Raw, "commission_with_code", "→ sent");
         _controller.Commission(req.Code, CancellationToken.None).ContinueWith(t => t.IsFaulted
             ? new CommissionDone(req.Transaction, null, t.Exception!.GetBaseException().Message)
             : new CommissionDone(req.Transaction, t.Result, null)).PipeTo(Self);
+    }
 
-    private void OnCommissionDone(CommissionDone done) =>
+    private void OnCommissionDone(CommissionDone done)
+    {
+        if (done.Error is not null)
+            Log(LogCategory.Activity, "commission_failed", $"commissioning failed: {done.Error}", level: LogLevel.Warn);
         _mqtt.Publish(_topics.Base + "/bridge/response/commission", JsonSerializer.Serialize(new
         {
             transaction = done.Transaction,
@@ -135,6 +149,7 @@ public sealed class MatterGatewayActor : ReceiveActor
             node_id = done.NodeId?.ToString(),
             error = done.Error,
         }));
+    }
 
     private void OnRemove(RemoveRequest req)
     {
@@ -188,6 +203,7 @@ public sealed class MatterGatewayActor : ReceiveActor
 
         PublishDevices();
         PublishEvent("device_renamed", new { from, to = slug });
+        Log(LogCategory.Activity, "renamed", $"{from} → {slug}", device: slug);
         return new RenameResult(true, null, slug);
     }
 
@@ -201,9 +217,13 @@ public sealed class MatterGatewayActor : ReceiveActor
 
     private void OnReachabilityChanged(ReachabilityChanged r)
     {
+        Log(LogCategory.Raw, "node_updated", $"node {r.NodeId} reachable={r.Reachable}");
         if (!_byKey.TryGetValue((r.NodeId, r.Endpoint), out var reg)) return;
         reg.Actor.Tell(new SetReachable(r.Reachable));
         if (reg.Descriptor.Reachable == r.Reachable) return;
+        Log(LogCategory.Activity, r.Reachable ? "online" : "offline",
+            $"{reg.FriendlyName} {(r.Reachable ? "online" : "offline")}",
+            device: reg.FriendlyName, level: r.Reachable ? LogLevel.Ok : LogLevel.Warn);
         // Reflect it in the discovery model so REST/dashboard and bridge/devices show the live state.
         var updated = reg with { Descriptor = reg.Descriptor with { Reachable = r.Reachable } };
         _byKey[(r.NodeId, r.Endpoint)] = updated;
@@ -227,4 +247,8 @@ public sealed class MatterGatewayActor : ReceiveActor
 
     private void PublishEvent(string type, object data) =>
         _mqtt.Publish(_topics.BridgeEvent(), JsonSerializer.Serialize(new { type, data }));
+
+    private void Log(LogCategory category, string kind, string message,
+                     string? device = null, LogLevel level = LogLevel.Info) =>
+        Context.System.EventStream.Publish(new LogEntry(DateTimeOffset.Now, category, kind, message, device, level));
 }

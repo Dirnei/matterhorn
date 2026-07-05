@@ -366,4 +366,63 @@ public class MatterGatewayActorTests : TestKit
         Assert.False(result.Found);
         Assert.Empty(fake.Removed);
     }
+
+    [Fact]
+    public void NodeAdded_emits_activity_joined_and_raw_node_added()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(LogEntry));
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(
+            new FakeMatterController(), new InMemoryMqttPublisher(), new MqttTopics("matterhorn")));
+
+        gw.Tell(new NodeAdded(Light(5)));
+
+        var entries = new List<LogEntry>();
+        AwaitAssert(() =>
+        {
+            while (TryReceiveOne(out var m, TimeSpan.Zero) && m.Message is LogEntry le) entries.Add(le);
+            Assert.Contains(entries, e => e.Category == LogCategory.Raw && e.Kind == "node_added");
+            Assert.Contains(entries, e => e.Category == LogCategory.Activity && e.Kind == "joined"
+                                          && e.Level == LogLevel.Ok && e.Device == "bulb_5_1");
+        });
+    }
+
+    [Fact]
+    public void CommissionRequest_emits_activity_commission_entry()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(LogEntry));
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(
+            new FakeMatterController(), new InMemoryMqttPublisher(), new MqttTopics("matterhorn")));
+
+        gw.Tell(new CommissionRequest("MT:ABC", "t1"));
+
+        AwaitAssert(() =>
+        {
+            var seen = false;
+            while (TryReceiveOne(out var m, TimeSpan.Zero))
+                if (m.Message is LogEntry { Category: LogCategory.Activity, Kind: "commission" }) seen = true;
+            Assert.True(seen);
+        });
+    }
+
+    [Fact]
+    public void AttributeChanged_emits_raw_line_with_path()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(LogEntry));
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(
+            new FakeMatterController(), new InMemoryMqttPublisher(), new MqttTopics("matterhorn")));
+        gw.Tell(new NodeAdded(Light(9)));
+
+        var reading = new AttributeReading(9, 1, MatterClusters.OnOff, 0,
+            System.Text.Json.JsonSerializer.SerializeToElement(false));
+        gw.Tell(new AttributeChanged(reading));
+
+        AwaitAssert(() =>
+        {
+            var found = false;
+            while (TryReceiveOne(out var m, TimeSpan.Zero))
+                if (m.Message is LogEntry { Category: LogCategory.Raw, Kind: "attribute_updated" } le
+                    && le.Message.Contains("9/1/6/0")) found = true;
+            Assert.True(found);
+        });
+    }
 }
