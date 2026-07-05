@@ -58,54 +58,54 @@ public sealed class GroupsSupervisor : ReceiveActor
     private void OnCreate(CreateGroup req)
     {
         var slug = FriendlyName.Slug(req.Name);
-        if (slug.Length == 0) { Reply(new GroupOpResult(false, "invalid_name"), "create", req.Transaction, req.Name, null); return; }
-        if (IsDeviceName(slug)) { Reply(new GroupOpResult(false, "collides_with_device"), "create", req.Transaction, req.Name, slug); return; }
+        if (slug.Length == 0) { Reply(new GroupOpResult(false, "invalid_name"), "create", req.Transaction, req.Name); return; }
+        if (IsDeviceName(slug)) { Reply(new GroupOpResult(false, "collides_with_device"), "create", req.Transaction, req.Name); return; }
 
         var members = ResolveDevices(req.MemberDevices);
         _defs[slug] = members;
         if (_actors.TryGetValue(slug, out var existing)) existing.Tell(new UpdateGroupMembers(members)); // replace
         else _actors[slug] = SpawnEntity(slug, members);
         Persist();
-        Reply(new GroupOpResult(true, null, slug), "create", req.Transaction, req.Name, slug);
+        Reply(new GroupOpResult(true, null, slug), "create", req.Transaction, req.Name);
     }
 
     private void OnDelete(DeleteGroup req)
     {
-        if (!_actors.TryGetValue(req.Name, out var actor)) { Reply(new GroupOpResult(false, "not_found"), "remove", req.Transaction, req.Name, null); return; }
+        if (!_actors.TryGetValue(req.Name, out var actor)) { Reply(new GroupOpResult(false, "not_found"), "remove", req.Transaction, req.Name); return; }
         _mqtt.PublishRetained(_topics.Device(req.Name), "");   // clear retained group state
         Context.Stop(actor);
         _actors.Remove(req.Name); _defs.Remove(req.Name);
         Persist();
-        Reply(new GroupOpResult(true, null, req.Name), "remove", req.Transaction, req.Name, req.Name);
+        Reply(new GroupOpResult(true, null, req.Name), "remove", req.Transaction, req.Name);
     }
 
     private void OnRename(RenameGroup req)
     {
         var slug = FriendlyName.Slug(req.To);
-        if (slug.Length == 0) { Reply(new GroupOpResult(false, "invalid_name"), "rename", req.Transaction, req.From, null); return; }
-        if (!_defs.TryGetValue(req.From, out var members)) { Reply(new GroupOpResult(false, "not_found"), "rename", req.Transaction, req.From, null); return; }
-        if (slug == req.From) { Reply(new GroupOpResult(true, null, slug), "rename", req.Transaction, req.From, slug); return; }
+        if (slug.Length == 0) { Reply(new GroupOpResult(false, "invalid_name"), "rename", req.Transaction, req.From); return; }
+        if (!_defs.TryGetValue(req.From, out var members)) { Reply(new GroupOpResult(false, "not_found"), "rename", req.Transaction, req.From); return; }
+        if (slug == req.From) { Reply(new GroupOpResult(true, null, slug), "rename", req.Transaction, req.From); return; }
         if (_defs.ContainsKey(slug) || IsDeviceName(slug))
-        { Reply(new GroupOpResult(false, _defs.ContainsKey(slug) ? "name_taken" : "collides_with_device"), "rename", req.Transaction, req.From, null); return; }
+        { Reply(new GroupOpResult(false, _defs.ContainsKey(slug) ? "name_taken" : "collides_with_device"), "rename", req.Transaction, req.From); return; }
 
         var actor = _actors[req.From];
         _actors.Remove(req.From); _defs.Remove(req.From);
         _actors[slug] = actor; _defs[slug] = members;
         actor.Tell(new RenameGroupEntity(slug));
         Persist();
-        Reply(new GroupOpResult(true, null, slug), "rename", req.Transaction, req.From, slug);
+        Reply(new GroupOpResult(true, null, slug), "rename", req.Transaction, req.From);
     }
 
     private void OnMember(string group, string device, string tx, bool add)
     {
-        if (!_defs.TryGetValue(group, out var members)) { Reply(new GroupOpResult(false, "not_found"), add ? "members/add" : "members/remove", tx, group, null); return; }
+        if (!_defs.TryGetValue(group, out var members)) { Reply(new GroupOpResult(false, "not_found"), add ? "members/add" : "members/remove", tx, group); return; }
         var key = ResolveDevices(new[] { device }).FirstOrDefault();
-        if (key == default && add) { Reply(new GroupOpResult(false, "not_found"), "members/add", tx, group, null); return; }
+        if (key == default && add) { Reply(new GroupOpResult(false, "not_found"), "members/add", tx, group); return; }
         if (add && !members.Contains(key)) members.Add(key);
         else if (!add) members.Remove(key);
         _actors[group].Tell(new UpdateGroupMembers(members));
         Persist();
-        Reply(new GroupOpResult(true, null, group), add ? "members/add" : "members/remove", tx, group, group);
+        Reply(new GroupOpResult(true, null, group), add ? "members/add" : "members/remove", tx, group);
     }
 
     private void OnDeviceRemoved(DeviceRemoved d)
@@ -148,7 +148,7 @@ public sealed class GroupsSupervisor : ReceiveActor
         Context.System.EventStream.Publish(new GroupListChanged());
     }
 
-    private void Reply(GroupOpResult result, string action, string tx, string from, string? to)
+    private void Reply(GroupOpResult result, string action, string tx, string from)
     {
         Sender.Tell(result);   // REST Ask path; harmless when Told with NoSender (MQTT).
         _mqtt.Publish($"{_topics.Base}/bridge/response/group/{action}", JsonSerializer.Serialize(new
