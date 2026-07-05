@@ -577,6 +577,7 @@ function dockToggleCollapse(){
   document.getElementById('dockToggle').textContent=c?'▲':'▼';
 }
 document.getElementById('dockHead').addEventListener('click',dockToggleCollapse);
+document.getElementById('dockToggle').addEventListener('click',dockToggleCollapse);
 
 connect();
 loadAll();
