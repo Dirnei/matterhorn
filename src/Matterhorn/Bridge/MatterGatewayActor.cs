@@ -4,6 +4,7 @@ using Akka.Event;
 using Akka.Streams;
 using Matterhorn.Configuration;
 using Matterhorn.Devices;
+using Matterhorn.HomeAssistant;
 using Matterhorn.Matter;
 using Matterhorn.Mqtt;
 using Matterhorn.Persistence;
@@ -22,6 +23,7 @@ public sealed class MatterGatewayActor : ReceiveActor
     private readonly IMqttPublisher _mqtt;
     private readonly MqttTopics _topics;
     private readonly INameStore _names;
+    private readonly string? _haPrefix;
     private readonly Dictionary<(ulong, ushort), string> _overrides;
 
     private sealed record Registered(string FriendlyName, EndpointInfo Info, IActorRef Actor, DeviceDescriptor Descriptor);
@@ -32,12 +34,14 @@ public sealed class MatterGatewayActor : ReceiveActor
     private readonly Dictionary<string, Registered> _byName = new();
     private ISourceQueueWithComplete<MatterEvent>? _queue;
 
-    public static Props Props(IMatterController controller, IMqttPublisher mqtt, MqttTopics topics, INameStore? names = null) =>
-        Akka.Actor.Props.Create(() => new MatterGatewayActor(controller, mqtt, topics, names));
+    public static Props Props(IMatterController controller, IMqttPublisher mqtt, MqttTopics topics,
+        INameStore? names = null, string? haDiscoveryPrefix = null) =>
+        Akka.Actor.Props.Create(() => new MatterGatewayActor(controller, mqtt, topics, names, haDiscoveryPrefix));
 
-    public MatterGatewayActor(IMatterController controller, IMqttPublisher mqtt, MqttTopics topics, INameStore? names = null)
+    public MatterGatewayActor(IMatterController controller, IMqttPublisher mqtt, MqttTopics topics,
+        INameStore? names = null, string? haDiscoveryPrefix = null)
     {
-        _controller = controller; _mqtt = mqtt; _topics = topics;
+        _controller = controller; _mqtt = mqtt; _topics = topics; _haPrefix = haDiscoveryPrefix;
         _names = names ?? NullNameStore.Instance;
         _overrides = new Dictionary<(ulong, ushort), string>(_names.Load());
 
@@ -54,6 +58,14 @@ public sealed class MatterGatewayActor : ReceiveActor
             if (_byName.TryGetValue(s.FriendlyName, out var reg)) reg.Actor.Tell(new ApplySet(s.Payload));
         });
         Receive<MqttConnected>(_ => AnnounceAll());
+        Receive<HaStatusOnline>(_ =>
+        {
+            foreach (var reg in _byName.Values)
+            {
+                PublishHaDiscovery(reg.Descriptor);
+                reg.Actor.Tell(new Republish());
+            }
+        });
         Receive<GetDevices>(_ => Sender.Tell((IReadOnlyList<DeviceDescriptor>)_byName.Values.Select(r => r.Descriptor).ToList()));
         Receive<GetDeviceState>(g =>
         {
@@ -98,6 +110,7 @@ public sealed class MatterGatewayActor : ReceiveActor
         _byKey[(info.NodeId, info.Endpoint)] = reg;
         _byName[name] = reg;
         PublishDevices();
+        PublishHaDiscovery(descriptor);
         PublishEvent("device_joined", new { friendly_name = name });
     }
 
@@ -112,6 +125,7 @@ public sealed class MatterGatewayActor : ReceiveActor
             if (!_byKey.Remove(key, out var reg)) continue;
             _byName.Remove(reg.FriendlyName);
             Context.Stop(reg.Actor);
+            ClearHaDiscovery(reg.Descriptor);
             // Drop any persisted name override for the departed endpoint so names.json doesn't grow forever.
             prunedOverride |= _overrides.Remove(key);
             PublishEvent("device_leave", new { friendly_name = reg.FriendlyName });
@@ -187,6 +201,7 @@ public sealed class MatterGatewayActor : ReceiveActor
         SaveOverrides();
 
         PublishDevices();
+        PublishHaDiscovery(updated.Descriptor);
         PublishEvent("device_renamed", new { from, to = slug });
         return new RenameResult(true, null, slug);
     }
@@ -215,7 +230,11 @@ public sealed class MatterGatewayActor : ReceiveActor
     {
         _mqtt.PublishRetained(_topics.BridgeState(), """{"state":"online"}""");
         PublishDevices();
-        foreach (var reg in _byName.Values) reg.Actor.Tell(new Republish());
+        foreach (var reg in _byName.Values)
+        {
+            PublishHaDiscovery(reg.Descriptor);
+            reg.Actor.Tell(new Republish());
+        }
     }
 
     private void PublishDevices()
@@ -227,4 +246,19 @@ public sealed class MatterGatewayActor : ReceiveActor
 
     private void PublishEvent(string type, object data) =>
         _mqtt.Publish(_topics.BridgeEvent(), JsonSerializer.Serialize(new { type, data }));
+
+    private void PublishHaDiscovery(DeviceDescriptor descriptor)
+    {
+        if (_haPrefix is null) return;
+        foreach (var m in HaDiscoveryBuilder.Build(descriptor, _topics, _haPrefix))
+            _mqtt.PublishRetained(m.Topic, m.Payload);
+    }
+
+    // A retained empty payload deletes the config topic -> HA removes the entity.
+    private void ClearHaDiscovery(DeviceDescriptor descriptor)
+    {
+        if (_haPrefix is null) return;
+        foreach (var m in HaDiscoveryBuilder.Build(descriptor, _topics, _haPrefix))
+            _mqtt.PublishRetained(m.Topic, "");
+    }
 }
