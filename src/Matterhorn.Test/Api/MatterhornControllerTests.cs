@@ -5,6 +5,7 @@ using Akka.TestKit.Xunit2;
 using Matterhorn.Api;
 using Matterhorn.Bridge;
 using Matterhorn.Devices;
+using Matterhorn.Groups;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -184,12 +185,234 @@ public class MatterhornControllerTests : TestKit, IClassFixture<WebApplicationFa
         Assert.Equal(HttpStatusCode.NotFound, (await task).StatusCode);
     }
 
+    [Fact]
+    public async Task List_groups_returns_supervisor_list()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGroups(probe.Ref);
+
+        var task = client.GetAsync("/api/groups");
+        probe.ExpectMsg<GetGroups>();
+        probe.Reply((IReadOnlyList<GroupView>)new List<GroupView> { new("living_room", new List<string> { "lamp" }) });
+
+        var resp = await task;
+        resp.EnsureSuccessStatusCode();
+        var body = await resp.Content.ReadAsStringAsync();
+        Assert.Contains("\"friendly_name\":\"living_room\"", body);
+        Assert.Contains("\"members\":[\"lamp\"]", body);
+    }
+
+    [Fact]
+    public async Task PutGroup_creates_and_returns_201()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGroups(probe.Ref);
+
+        var task = client.PutAsJsonAsync("/api/groups/living_room", new Dictionary<string, List<string>> { ["members"] = new() { "lamp" } });
+
+        var msg = probe.ExpectMsg<CreateGroup>();
+        Assert.Equal("living_room", msg.Name);
+        Assert.Equal(new[] { "lamp" }, msg.MemberDevices);
+        probe.Reply(new GroupOpResult(true, null, "living_room"));
+
+        Assert.Equal(HttpStatusCode.Created, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task PutGroup_collision_returns_409()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGroups(probe.Ref);
+
+        var task = client.PutAsJsonAsync("/api/groups/lamp", new Dictionary<string, List<string>>());
+        probe.ExpectMsg<CreateGroup>();
+        probe.Reply(new GroupOpResult(false, "collides_with_device"));
+
+        Assert.Equal(HttpStatusCode.Conflict, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task PutGroup_invalid_name_returns_400()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGroups(probe.Ref);
+
+        var task = client.PutAsJsonAsync("/api/groups/!!!", new Dictionary<string, List<string>>());
+        probe.ExpectMsg<CreateGroup>();
+        probe.Reply(new GroupOpResult(false, "invalid_name"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task Patch_group_forwards_GroupSet()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGroups(probe.Ref);
+
+        var task = client.PatchAsJsonAsync("/api/groups/living_room", new Dictionary<string, string> { ["state"] = "ON" });
+
+        var msg = probe.ExpectMsg<GroupSet>();
+        Assert.Equal("living_room", msg.Name);
+        Assert.Equal("ON", msg.Payload["state"].GetString());
+        Assert.Equal(HttpStatusCode.Accepted, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_group_returns_202_when_found()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGroups(probe.Ref);
+
+        var task = client.DeleteAsync("/api/groups/living_room");
+        var msg = probe.ExpectMsg<Matterhorn.Groups.DeleteGroup>();
+        Assert.Equal("living_room", msg.Name);
+        probe.Reply(new GroupOpResult(true, null, "living_room"));
+
+        Assert.Equal(HttpStatusCode.Accepted, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_missing_group_returns_404()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGroups(probe.Ref);
+
+        var task = client.DeleteAsync("/api/groups/ghost");
+        probe.ExpectMsg<Matterhorn.Groups.DeleteGroup>();
+        probe.Reply(new GroupOpResult(false, "not_found"));
+
+        Assert.Equal(HttpStatusCode.NotFound, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task Add_group_member_returns_200_when_found()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGroups(probe.Ref);
+
+        var task = client.PutAsync("/api/groups/living_room/members/lamp", null);
+        var msg = probe.ExpectMsg<AddGroupMember>();
+        Assert.Equal("living_room", msg.Group);
+        Assert.Equal("lamp", msg.Device);
+        probe.Reply(new GroupOpResult(true, null, "living_room"));
+
+        Assert.Equal(HttpStatusCode.OK, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task Add_group_member_returns_404_when_missing()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGroups(probe.Ref);
+
+        var task = client.PutAsync("/api/groups/ghost/members/lamp", null);
+        probe.ExpectMsg<AddGroupMember>();
+        probe.Reply(new GroupOpResult(false, "not_found"));
+
+        Assert.Equal(HttpStatusCode.NotFound, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task Remove_group_member_returns_200_when_found()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGroups(probe.Ref);
+
+        var task = client.DeleteAsync("/api/groups/living_room/members/lamp");
+        var msg = probe.ExpectMsg<RemoveGroupMember>();
+        Assert.Equal("living_room", msg.Group);
+        Assert.Equal("lamp", msg.Device);
+        probe.Reply(new GroupOpResult(true, null, "living_room"));
+
+        Assert.Equal(HttpStatusCode.OK, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task Remove_group_member_returns_404_when_missing()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGroups(probe.Ref);
+
+        var task = client.DeleteAsync("/api/groups/ghost/members/lamp");
+        probe.ExpectMsg<RemoveGroupMember>();
+        probe.Reply(new GroupOpResult(false, "not_found"));
+
+        Assert.Equal(HttpStatusCode.NotFound, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task Rename_group_returns_200_on_success()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGroups(probe.Ref);
+
+        var task = client.PostAsJsonAsync("/api/groups/living_room/rename", new Dictionary<string, string> { ["to"] = "den" });
+        var msg = probe.ExpectMsg<Matterhorn.Groups.RenameGroup>();
+        Assert.Equal("living_room", msg.From);
+        Assert.Equal("den", msg.To);
+        probe.Reply(new GroupOpResult(true, null, "den"));
+
+        Assert.Equal(HttpStatusCode.OK, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task Rename_missing_group_returns_404()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGroups(probe.Ref);
+
+        var task = client.PostAsJsonAsync("/api/groups/ghost/rename", new Dictionary<string, string> { ["to"] = "den" });
+        probe.ExpectMsg<Matterhorn.Groups.RenameGroup>();
+        probe.Reply(new GroupOpResult(false, "not_found"));
+
+        Assert.Equal(HttpStatusCode.NotFound, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task Rename_group_conflict_returns_409()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGroups(probe.Ref);
+
+        var task = client.PostAsJsonAsync("/api/groups/living_room/rename", new Dictionary<string, string> { ["to"] = "taken" });
+        probe.ExpectMsg<Matterhorn.Groups.RenameGroup>();
+        probe.Reply(new GroupOpResult(false, "name_taken"));
+
+        Assert.Equal(HttpStatusCode.Conflict, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task Rename_group_invalid_name_returns_400()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGroups(probe.Ref);
+
+        var task = client.PostAsJsonAsync("/api/groups/living_room/rename", new Dictionary<string, string> { ["to"] = "!!!" });
+        probe.ExpectMsg<Matterhorn.Groups.RenameGroup>();
+        probe.Reply(new GroupOpResult(false, "invalid_name"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await task).StatusCode);
+    }
+
     private HttpClient ClientWithGateway(IActorRef gateway)
     {
         var client = _factory.WithWebHostBuilder(b =>
             b.ConfigureServices(s =>
             {
                 s.AddSingleton(new GatewayRef(gateway));
+                s.AddSingleton<IConfigureApiKey>(new StaticApiKey("secret"));
+            })).CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", "secret");
+        return client;
+    }
+
+    private HttpClient ClientWithGroups(IActorRef groups)
+    {
+        var client = _factory.WithWebHostBuilder(b =>
+            b.ConfigureServices(s =>
+            {
+                s.AddSingleton(new GroupsRef(groups));
                 s.AddSingleton<IConfigureApiKey>(new StaticApiKey("secret"));
             })).CreateClient();
         client.DefaultRequestHeaders.Add("X-Api-Key", "secret");

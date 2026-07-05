@@ -13,10 +13,11 @@ namespace Matterhorn.Api;
 /// truth; this class is the only place domain ⇄ contract mapping lives.
 /// </summary>
 [ApiController]
-public sealed class MatterhornController(GatewayRef gateway) : Gen.MatterhornControllerBase
+public sealed class MatterhornController(GatewayRef gateway, Matterhorn.Groups.GroupsRef groups) : Gen.MatterhornControllerBase
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
     private IActorRef Gw => gateway.Ref;
+    private IActorRef Grp => groups.Ref;
 
     public override async Task<ActionResult<ICollection<Gen.Device>>> ListDevices()
     {
@@ -33,12 +34,7 @@ public sealed class MatterhornController(GatewayRef gateway) : Gen.MatterhornCon
 
     public override Task<IActionResult> SetDeviceState(string name, Gen.SetRequest body)
     {
-        var payload = new Dictionary<string, JsonElement>();
-        if (body.State.HasValue) payload["state"] = JsonSerializer.SerializeToElement(body.State.Value.ToString());
-        if (body.Brightness.HasValue) payload["brightness"] = JsonSerializer.SerializeToElement(body.Brightness.Value);
-        if (body.Color_temp.HasValue) payload["color_temp"] = JsonSerializer.SerializeToElement(body.Color_temp.Value);
-        if (body.Hue.HasValue) payload["hue"] = JsonSerializer.SerializeToElement(body.Hue.Value);
-        if (body.Saturation.HasValue) payload["saturation"] = JsonSerializer.SerializeToElement(body.Saturation.Value);
+        var payload = SetRequestToPayload(body);
         if (payload.Count > 0) Gw.Tell(new SetDevice(name, payload));
         return Task.FromResult<IActionResult>(Accepted());
     }
@@ -73,6 +69,77 @@ public sealed class MatterhornController(GatewayRef gateway) : Gen.MatterhornCon
 
     public override Task<ActionResult<Gen.BridgeInfo>> GetBridgeInfo() =>
         Task.FromResult<ActionResult<Gen.BridgeInfo>>(new Gen.BridgeInfo { Service = "matterhorn" });
+
+    public override async Task<ActionResult<ICollection<Gen.Group>>> ListGroups()
+    {
+        var views = await Grp.Ask<IReadOnlyList<Matterhorn.Groups.GroupView>>(new Matterhorn.Groups.GetGroups(), Timeout);
+        return views.Select(v => new Gen.Group { Friendly_name = v.FriendlyName, Members = v.Members.ToList() }).ToList();
+    }
+
+    public override async Task<IActionResult> PutGroup(string name, Gen.GroupMembers body)
+    {
+        var tx = Guid.NewGuid().ToString("N");
+        var members = body?.Members?.ToList() ?? new List<string>();
+        var result = await Grp.Ask<Matterhorn.Groups.GroupOpResult>(new Matterhorn.Groups.CreateGroup(name, members, tx), Timeout);
+        return result switch
+        {
+            { Ok: true } => Created($"/api/groups/{result.Name}", null),
+            { Error: "collides_with_device" } => Conflict(),
+            _ => BadRequest(),
+        };
+    }
+
+    public override Task<IActionResult> SetGroupState(string name, Gen.SetRequest body)
+    {
+        var payload = SetRequestToPayload(body);
+        if (payload.Count > 0) Grp.Tell(new Matterhorn.Groups.GroupSet(name, payload));
+        return Task.FromResult<IActionResult>(Accepted());
+    }
+
+    public override async Task<IActionResult> DeleteGroup(string name)
+    {
+        var tx = Guid.NewGuid().ToString("N");
+        var result = await Grp.Ask<Matterhorn.Groups.GroupOpResult>(new Matterhorn.Groups.DeleteGroup(name, tx), Timeout);
+        return result.Ok ? Accepted() : NotFound();
+    }
+
+    public override async Task<IActionResult> AddGroupMember(string name, string device)
+    {
+        var tx = Guid.NewGuid().ToString("N");
+        var result = await Grp.Ask<Matterhorn.Groups.GroupOpResult>(new Matterhorn.Groups.AddGroupMember(name, device, tx), Timeout);
+        return result.Ok ? Ok() : NotFound();
+    }
+
+    public override async Task<IActionResult> RemoveGroupMember(string name, string device)
+    {
+        var tx = Guid.NewGuid().ToString("N");
+        var result = await Grp.Ask<Matterhorn.Groups.GroupOpResult>(new Matterhorn.Groups.RemoveGroupMember(name, device, tx), Timeout);
+        return result.Ok ? Ok() : NotFound();
+    }
+
+    public override async Task<IActionResult> RenameGroup(string name, Gen.RenameRequest body)
+    {
+        var tx = Guid.NewGuid().ToString("N");
+        var result = await Grp.Ask<Matterhorn.Groups.GroupOpResult>(new Matterhorn.Groups.RenameGroup(name, body.To, tx), Timeout);
+        return result switch
+        {
+            { Ok: true } => Ok(),
+            { Error: "not_found" } => NotFound(),
+            { Error: "name_taken" } or { Error: "collides_with_device" } => Conflict(),
+            _ => BadRequest(),
+        };
+    }
+
+    private static Dictionary<string, JsonElement> SetRequestToPayload(Gen.SetRequest body)
+    {
+        var payload = new Dictionary<string, JsonElement>();
+        if (body.State.HasValue) payload["state"] = JsonSerializer.SerializeToElement(body.State.Value.ToString());
+        if (body.Brightness.HasValue) payload["brightness"] = JsonSerializer.SerializeToElement(body.Brightness.Value);
+        if (body.Color_temp.HasValue) payload["color_temp"] = JsonSerializer.SerializeToElement(body.Color_temp.Value);
+        if (body.Hue.HasValue) payload["hue"] = JsonSerializer.SerializeToElement(body.Hue.Value);
+        if (body.Saturation.HasValue) payload["saturation"] = JsonSerializer.SerializeToElement(body.Saturation.Value);
+        return payload;
+    }
 
     private static Gen.Device ToDto(DeviceDescriptor d) => new()
     {

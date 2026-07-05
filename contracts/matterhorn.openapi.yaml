@@ -114,6 +114,127 @@ paths:
               schema:
                 $ref: '#/components/schemas/CommissionAccepted'
 
+  /api/groups:
+    get:
+      operationId: listGroups
+      summary: List all groups.
+      tags: [groups]
+      responses:
+        '200':
+          description: Every group and its member friendly names.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Group'
+
+  /api/groups/{name}:
+    put:
+      operationId: putGroup
+      summary: Create or replace a group.
+      tags: [groups]
+      parameters:
+        - $ref: '#/components/parameters/FriendlyName'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupMembers'
+      responses:
+        '200':
+          description: Replaced.
+        '201':
+          description: Created.
+        '400':
+          description: The requested name is not usable.
+        '409':
+          description: The name collides with an existing device.
+    patch:
+      operationId: setGroupState
+      summary: Fan out a partial state change to a group's members.
+      tags: [groups]
+      parameters:
+        - $ref: '#/components/parameters/FriendlyName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetRequest'
+      responses:
+        '202':
+          description: Accepted; applied asynchronously.
+    delete:
+      operationId: deleteGroup
+      summary: Delete a group.
+      tags: [groups]
+      parameters:
+        - $ref: '#/components/parameters/FriendlyName'
+      responses:
+        '202':
+          description: Deleted.
+        '404':
+          description: No group with that name.
+
+  /api/groups/{name}/members/{device}:
+    put:
+      operationId: addGroupMember
+      summary: Add a device to a group.
+      tags: [groups]
+      parameters:
+        - $ref: '#/components/parameters/FriendlyName'
+        - name: device
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Added.
+        '404':
+          description: No such group or device.
+    delete:
+      operationId: removeGroupMember
+      summary: Remove a device from a group.
+      tags: [groups]
+      parameters:
+        - $ref: '#/components/parameters/FriendlyName'
+        - name: device
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Removed.
+        '404':
+          description: No group with that name.
+
+  /api/groups/{name}/rename:
+    post:
+      operationId: renameGroup
+      summary: Rename a group.
+      tags: [groups]
+      parameters:
+        - $ref: '#/components/parameters/FriendlyName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameRequest'
+      responses:
+        '200':
+          description: Renamed.
+        '400':
+          description: Not usable.
+        '404':
+          description: No group with that name.
+        '409':
+          description: Target name taken.
+
   /api/bridge/info:
     get:
       operationId: getBridgeInfo
@@ -221,3 +342,15 @@ components:
       required: [service]
       properties:
         service: { type: string }
+
+    Group:
+      type: object
+      required: [friendly_name, members]
+      properties:
+        friendly_name: { type: string }
+        members: { type: array, items: { type: string } }
+
+    GroupMembers:
+      type: object
+      properties:
+        members: { type: array, items: { type: string }, description: 'Initial member friendly names.' }
