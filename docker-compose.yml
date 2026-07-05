@@ -1,5 +1,5 @@
 # Local test stack: EMQX broker + Matterhorn. Which Matter controller it uses is set in a
-# gitignored .env (copy .env.example → .env): the real python-matter-server on the Pi, or the
+# gitignored .env (copy .env.example → .env): the real matterjs-server on the Pi, or the
 # in-memory fake with demo devices. Host ports are all in the 16000+ range to avoid clashing.
 #
 #   docker compose up --build

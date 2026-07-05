@@ -12,8 +12,8 @@ namespace Matterhorn.Matter;
 public sealed record ServerResult(int MessageId, ulong? NodeId, string? Error);
 
 /// <summary>
-/// Pure WS-JSON ⇄ domain codec for the matter-server WebSocket protocol (matterjs-server /
-/// python-matter-server).
+/// Pure WS-JSON ⇄ domain codec for the matter-server WebSocket protocol (matterjs-server, or the
+/// archived python-matter-server — same API).
 /// Isolated here so the wire format stays behind <see cref="IMatterController"/>.
 /// </summary>
 public static class MatterServerProtocol

@@ -6,8 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Matterhorn (`matter2mqtt`) is a neutral bridge that exposes Matter devices as a
 Zigbee2MQTT-shaped **MQTT** surface, a **REST** API, and a small **web dashboard** (SSE). It does
-**not** speak Matter to devices directly — it drives an upstream `matterjs-server` /
-`python-matter-server` over a WebSocket, which does the actual commissioning and Matter I/O.
+**not** speak Matter to devices directly — it drives an upstream `matterjs-server` (the maintained
+successor to the now-archived `python-matter-server`, same WebSocket API) over a WebSocket, which does
+the actual commissioning and Matter I/O.
 
 MQTT and REST are two projections of one internal actor model: anything you can see or do on one,
 you can on the other. Keep them in sync when changing behaviour.
