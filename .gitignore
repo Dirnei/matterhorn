@@ -46,3 +46,6 @@ docs/.vitepress/cache/
 
 # LikeC4 generated webcomponent bundle (rebuilt from docs/likec4/*.likec4)
 docs/public/likec4-views.js
+
+.claude/
+.superpowers/
