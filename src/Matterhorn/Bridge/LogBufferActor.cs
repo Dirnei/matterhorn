@@ -4,8 +4,10 @@ namespace Matterhorn.Bridge;
 
 /// <summary>
 /// Singleton ring buffer of recent <see cref="LogEntry"/> lines. Subscribes to the EventStream
-/// and keeps the last N per category so a browser that connects (or reloads) can replay recent
-/// history before going live. Survives page reload, not app restart.
+/// and keeps the last N per category (so a raw-event flood can't evict the sparser milestone
+/// history), but answers a snapshot as one chronological stream merged across both categories —
+/// the dashboard's Raw view is the whole stream, the Activity view filters it to milestones.
+/// A browser that connects (or reloads) replays this before going live. Survives reload, not restart.
 /// </summary>
 public sealed class LogBufferActor : ReceiveActor
 {
@@ -25,7 +27,7 @@ public sealed class LogBufferActor : ReceiveActor
             while (q.Count > cap) q.Dequeue();
         });
         Receive<GetLogSnapshot>(_ =>
-            Sender.Tell(new LogSnapshot(_activity.ToList(), _raw.ToList())));
+            Sender.Tell(new LogSnapshot(_activity.Concat(_raw).OrderBy(e => e.Ts).ToList())));
     }
 
     protected override void PreStart() => Context.System.EventStream.Subscribe(Self, typeof(LogEntry));

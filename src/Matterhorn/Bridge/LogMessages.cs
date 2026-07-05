@@ -15,4 +15,7 @@ public enum LogLevel { Info, Ok, Warn }
 
 /// <summary>Ask the <see cref="LogBufferActor"/> for its retained buffer (replayed on SSE connect).</summary>
 public record GetLogSnapshot;
-public record LogSnapshot(IReadOnlyList<LogEntry> Activity, IReadOnlyList<LogEntry> Raw);
+
+/// <summary>Retained log lines, merged into one chronological stream (Activity + Raw). The
+/// dashboard's Raw view is the whole stream; the Activity view filters it to milestones.</summary>
+public record LogSnapshot(IReadOnlyList<LogEntry> Entries);

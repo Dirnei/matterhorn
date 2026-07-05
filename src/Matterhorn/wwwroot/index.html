@@ -153,12 +153,32 @@
   .dbtn.active { color:#fff; border-color:var(--enzian); }
   .dock .dbody { height:180px; overflow-y:auto; padding:7px 12px; font-size:12px; line-height:1.7; }
   .dock.collapsed .dbody { display:none; }
+  /* drag handle on the top edge — grab and drag up/down to resize */
+  .dock .dgrip { height:7px; cursor:ns-resize; position:relative; touch-action:none; }
+  .dock .dgrip::before { content:""; position:absolute; left:50%; top:2px; transform:translateX(-50%);
+      width:38px; height:3px; border-radius:2px; background:#26313b; transition:background .15s; }
+  .dock .dgrip:hover::before { background:var(--enzian); }
+  .dock.collapsed .dgrip { display:none; }
   .dock .ln { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .dock .ln .t { color:#5b6b78; }
   .dock .ln.info .k { color:#6fb0e8; }
   .dock .ln.ok   .k { color:#8fb974; }
   .dock .ln.warn .k { color:#d9724b; }
   main { padding-bottom:210px; }  /* keep the grid clear of the docked console */
+
+  /* commissioning progress modal */
+  .modal.comm { text-align:center; max-width:340px; }
+  .modal.comm .spinner { width:46px; height:46px; margin:2px auto 16px; border-radius:50%;
+      border:3px solid var(--line); border-top-color:var(--enzian); animation:spin .9s linear infinite; }
+  .modal.comm h3 { margin-bottom:6px; }
+  .modal.comm .comm-msg { font-family:var(--mono); font-size:13px; color:var(--ink); min-height:1.5em;
+      margin:0 0 8px; transition:opacity .22s; }
+  .modal.comm .comm-hint { color:var(--muted); font-size:12px; margin:0 0 16px; }
+  .modal.comm .comm-hide { background:transparent; border:none; color:var(--muted); font-size:12px;
+      cursor:pointer; text-decoration:underline; padding:2px 6px; }
+  .modal.comm .comm-hide:hover { color:var(--ink); background:transparent; }
+  .modal.comm.done .spinner { display:none; }
+  @keyframes spin { to { transform:rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -197,6 +217,7 @@
 <div class="toast" id="toast"></div>
 
 <div class="dock collapsed" id="dock">
+  <div class="dgrip" id="dockGrip" aria-hidden="true"></div>
   <div class="dhd" id="dockHead">
     <span class="dtitle">▤ Station Log</span>
     <div class="dctrls" onclick="event.stopPropagation()">
@@ -517,15 +538,66 @@ function connect(){
     let m; try{ m=JSON.parse(ev.data); }catch{ return; }
     if (m.type==='state'){ states.set(m.device,m.state); applyState(m.device); }
     else if (m.type==='devices'){ loadAll(); }
-    else if (m.type==='log'){ dockPush(m); }
+    else if (m.type==='log'){ dockPush(m); commOnLog(m); }
   };
 }
+
+// ---- commissioning progress modal (spinner + alpine quips while we wait) ----
+const commModal=document.createElement('div');
+commModal.className='modal-backdrop';
+commModal.innerHTML=
+  `<div class="modal comm" role="dialog" aria-modal="true" aria-labelledby="commTitle" aria-live="polite">
+     <div class="spinner" aria-hidden="true"></div>
+     <h3 id="commTitle">Commissioning…</h3>
+     <p id="commMsg" class="comm-msg"></p>
+     <p class="comm-hint">Matter interviews can take 30–60 seconds.</p>
+     <button class="comm-hide" type="button">hide — watch the log instead</button>
+   </div>`;
+document.body.appendChild(commModal);
+const COMM_QUIPS=["Climbing the mountain…","Searching for the alphorn…","Looking at a cow…",
+  "Waiting for good weather…","Warming up the raclette…","Asking the marmots for directions…",
+  "Polishing the cowbells…","Yodeling to the device…","Following the hiking trail…","Brewing edelweiss tea…"];
+let commQuipTimer=null, commGiveUp=null;
+function commQuip(){
+  const el=commModal.querySelector('#commMsg');
+  let next; do { next=COMM_QUIPS[Math.floor(Math.random()*COMM_QUIPS.length)]; } while(next===el.textContent);
+  el.style.opacity=0;
+  setTimeout(()=>{ el.textContent=next; el.style.opacity=1; },200);
+}
+function openComm(){
+  commModal.querySelector('.modal.comm').classList.remove('done');
+  commModal.querySelector('#commTitle').textContent='Commissioning…';
+  commModal.querySelector('#commMsg').textContent=COMM_QUIPS[0];
+  commModal.classList.add('open');
+  clearInterval(commQuipTimer); commQuipTimer=setInterval(commQuip,2800);
+  clearTimeout(commGiveUp); commGiveUp=setTimeout(closeComm,120000); // never trap the user forever
+}
+function closeComm(){
+  commModal.classList.remove('open');
+  clearInterval(commQuipTimer); commQuipTimer=null;
+  clearTimeout(commGiveUp); commGiveUp=null;
+}
+function commOutcome(text, ok){
+  clearInterval(commQuipTimer); commQuipTimer=null; clearTimeout(commGiveUp); commGiveUp=null;
+  commModal.querySelector('.modal.comm').classList.add('done');
+  commModal.querySelector('#commTitle').textContent=ok?'Joined!':'Commission failed';
+  const el=commModal.querySelector('#commMsg'); el.style.opacity=1; el.textContent=text;
+  setTimeout(closeComm, ok?1600:3200);
+}
+// Close the modal on the real outcome from the Station Log stream.
+function commOnLog(m){
+  if(!commModal.classList.contains('open')) return;
+  if(m.kind==='joined') commOutcome('✓ '+(m.device||'device')+' joined the fabric', true);
+  else if(m.kind==='commission_failed') commOutcome('✗ '+(m.msg||'commissioning failed'), false);
+}
+commModal.querySelector('.comm-hide').addEventListener('click',closeComm);
 
 document.getElementById('commissionForm').addEventListener('submit',async ev=>{
   ev.preventDefault();
   const code=document.getElementById('code').value.trim(); if(!code) return;
-  try { await api('/api/commission',{method:'POST',body:JSON.stringify({code})}); document.getElementById('code').value=''; toast('Commissioning started'); }
-  catch(e){ if(e.message!=='401') toast('Commission failed'); }
+  openComm();
+  try { await api('/api/commission',{method:'POST',body:JSON.stringify({code})}); document.getElementById('code').value=''; }
+  catch(e){ closeComm(); if(e.message!=='401') toast('Commission failed'); }
 });
 keyInput.addEventListener('change',()=>{ apiKey=keyInput.value.trim(); localStorage.setItem('mh_key',apiKey); connect(); loadAll(); });
 
@@ -542,22 +614,24 @@ if (ridge && !matchMedia('(prefers-reduced-motion: reduce)').matches){
 }
 
 // ---- Station Log dock ----
+// Raw is the whole chronological stream (both categories); Activity filters to milestones.
 const dock={el:document.getElementById('dock'),body:document.getElementById('dockBody'),
   last:document.getElementById('dockLast'),mode:'activity',paused:false,
-  buf:{activity:[],raw:[]},cap:250};
+  buf:{activity:[],all:[]},capAct:100,capAll:300};
+const dockView=()=>dock.mode==='activity'?dock.buf.activity:dock.buf.all;
 function dockRender(){
-  const rows=dock.buf[dock.mode];
-  dock.body.innerHTML=rows.map(e=>
+  dock.body.innerHTML=dockView().map(e=>
     `<div class="ln ${e.level}"><span class="t">${e.ts}</span> `+
     `<span class="k">${esc(e.kind)}</span> ${esc(e.msg)}`+
     `${e.device?` <span class="t">· ${esc(e.device)}</span>`:''}</div>`).join('');
   if(!dock.paused) dock.body.scrollTop=dock.body.scrollHeight;
 }
 function dockPush(e){
-  const arr=dock.buf[e.category]; if(!arr) return;
-  arr.push(e); if(arr.length>dock.cap) arr.shift();
+  dock.buf.all.push(e); if(dock.buf.all.length>dock.capAll) dock.buf.all.shift();
+  if(e.category==='activity'){ dock.buf.activity.push(e); if(dock.buf.activity.length>dock.capAct) dock.buf.activity.shift(); }
   dock.last.textContent=`last: ${e.kind} · ${e.ts}`;
-  if(e.category===dock.mode && !dock.paused) dockRender();
+  // Raw view shows everything; Activity view only its own entries.
+  if((dock.mode==='raw' || e.category==='activity') && !dock.paused) dockRender();
 }
 document.getElementById('dockMode').addEventListener('click',ev=>{
   const m=ev.target.dataset.mode; if(!m) return;
@@ -570,7 +644,8 @@ document.getElementById('dockPause').addEventListener('click',ev=>{
   ev.target.textContent=dock.paused?'resume':'pause'; if(!dock.paused) dockRender();
 });
 document.getElementById('dockClear').addEventListener('click',()=>{
-  dock.buf[dock.mode]=[]; dockRender();
+  if(dock.mode==='activity') dock.buf.activity=[]; else dock.buf.all=[];
+  dockRender();
 });
 function dockToggleCollapse(){
   const c=dock.el.classList.toggle('collapsed');
@@ -578,6 +653,26 @@ function dockToggleCollapse(){
 }
 document.getElementById('dockHead').addEventListener('click',dockToggleCollapse);
 document.getElementById('dockToggle').addEventListener('click',dockToggleCollapse);
+// drag the top edge to resize the log body (grow upward); height persists across reloads
+const dockGrip=document.getElementById('dockGrip');
+const savedDockH=parseInt(localStorage.getItem('mh_dock_h'),10);
+if(savedDockH) dock.body.style.height=savedDockH+'px';
+let dockDrag=null;
+dockGrip.addEventListener('pointerdown',ev=>{
+  ev.preventDefault();
+  dockDrag={y:ev.clientY,h:dock.body.offsetHeight};
+  dockGrip.setPointerCapture(ev.pointerId);
+});
+dockGrip.addEventListener('pointermove',ev=>{
+  if(!dockDrag) return;
+  const h=Math.min(Math.round(innerHeight*0.7),Math.max(80,dockDrag.h+(dockDrag.y-ev.clientY)));
+  dock.body.style.height=h+'px';
+});
+dockGrip.addEventListener('pointerup',ev=>{
+  if(!dockDrag) return;
+  dockDrag=null; dockGrip.releasePointerCapture(ev.pointerId);
+  localStorage.setItem('mh_dock_h',dock.body.offsetHeight);
+});
 
 connect();
 loadAll();

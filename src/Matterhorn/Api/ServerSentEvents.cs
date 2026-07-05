@@ -32,10 +32,11 @@ public static class ServerSentEvents
                 await ctx.Response.WriteAsync(": connected\n\n", ctx.RequestAborted);
                 await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
 
-                // Replay recent log history so a reload / late connection isn't blank.
+                // Replay recent log history (one chronological stream, both categories) so a
+                // reload / late connection isn't blank.
                 var buffer = registry.Get<LogBufferActor>();
                 var snap = await buffer.Ask<LogSnapshot>(new GetLogSnapshot(), TimeSpan.FromSeconds(2), ctx.RequestAborted);
-                foreach (var e in snap.Activity.Concat(snap.Raw))
+                foreach (var e in snap.Entries)
                 {
                     await ctx.Response.WriteAsync($"data: {SseBridgeActor.LogFrame(e)}\n\n", ctx.RequestAborted);
                     await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
