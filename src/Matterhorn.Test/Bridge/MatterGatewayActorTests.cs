@@ -450,4 +450,32 @@ public class MatterGatewayActorTests : TestKit
             Assert.True(found);
         });
     }
+
+    [Fact]
+    public void NodeAdded_and_NodeRemoved_publish_device_lifecycle_events()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(DeviceRegistered));
+        Sys.EventStream.Subscribe(TestActor, typeof(DeviceRemoved));
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(
+            new FakeMatterController(), new InMemoryMqttPublisher(), new MqttTopics("matterhorn")));
+
+        gw.Tell(new NodeAdded(Light(5)));
+        ExpectMsg<DeviceRegistered>(m => m.Key == (5UL, (ushort)1) && m.FriendlyName == "bulb_5_1");
+
+        gw.Tell(new NodeRemoved(5));
+        ExpectMsg<DeviceRemoved>(m => m.Key == (5UL, (ushort)1));
+    }
+
+    [Fact]
+    public void Rename_republishes_DeviceRegistered_with_the_new_name()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(DeviceRegistered));
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(
+            new FakeMatterController(), new InMemoryMqttPublisher(), new MqttTopics("matterhorn"), new InMemoryNameStore()));
+        gw.Tell(new NodeAdded(Light(5)));
+        ExpectMsg<DeviceRegistered>(m => m.FriendlyName == "bulb_5_1");
+
+        gw.Ask<RenameResult>(new RenameRequest("bulb_5_1", "lamp", "tx1")).Wait();
+        ExpectMsg<DeviceRegistered>(m => m.Key == (5UL, (ushort)1) && m.FriendlyName == "lamp");
+    }
 }

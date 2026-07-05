@@ -105,6 +105,7 @@ public sealed class MatterGatewayActor : ReceiveActor
         var reg = new Registered(name, info, actor, descriptor);
         _byKey[(info.NodeId, info.Endpoint)] = reg;
         _byName[name] = reg;
+        Context.System.EventStream.Publish(new DeviceRegistered((info.NodeId, info.Endpoint), name));
         PublishDevices();
         PublishEvent("device_joined", new { friendly_name = name });
         Log(LogCategory.Activity, "joined", $"{name} joined · node {info.NodeId}", device: name, level: LogLevel.Ok);
@@ -121,6 +122,7 @@ public sealed class MatterGatewayActor : ReceiveActor
         {
             if (!_byKey.Remove(key, out var reg)) continue;
             _byName.Remove(reg.FriendlyName);
+            Context.System.EventStream.Publish(new DeviceRemoved(key));
             Context.Stop(reg.Actor);
             // Drop any persisted name override for the departed endpoint so names.json doesn't grow forever.
             prunedOverride |= _overrides.Remove(key);
@@ -200,6 +202,7 @@ public sealed class MatterGatewayActor : ReceiveActor
         _byName.Remove(from);
         _byName[slug] = updated;
         _byKey[(reg.Info.NodeId, reg.Info.Endpoint)] = updated;
+        Context.System.EventStream.Publish(new DeviceRegistered((reg.Info.NodeId, reg.Info.Endpoint), slug));
         reg.Actor.Tell(new Rename(slug));
 
         _overrides[(reg.Info.NodeId, reg.Info.Endpoint)] = slug;

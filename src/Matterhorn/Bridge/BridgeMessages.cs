@@ -24,3 +24,10 @@ public record DeviceListChanged;
 /// <summary>Route a partial state change to a device by its stable key (group/scene fan-out).
 /// No-op if no endpoint is registered under the key.</summary>
 public record RouteSet((ulong NodeId, ushort Endpoint) Key, IReadOnlyDictionary<string, JsonElement> Payload);
+
+/// <summary>Published on the EventStream when a device joins or is renamed (upsert key→name).
+/// Consumed by the group/scene supervisors' name↔key read-model.</summary>
+public record DeviceRegistered((ulong NodeId, ushort Endpoint) Key, string FriendlyName);
+
+/// <summary>Published on the EventStream per endpoint when a node is removed — drives group/scene pruning.</summary>
+public record DeviceRemoved((ulong NodeId, ushort Endpoint) Key);
