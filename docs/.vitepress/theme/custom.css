@@ -193,3 +193,35 @@ body::before {
     stroke-dashoffset: 0;
   }
 }
+
+/* 5. Product screenshots. Framed like a station card (enzian-tinted border +
+      soft lift) and theme-swapped: VitePress toggles .dark on <html>, so the
+      light shot shows by default and the dark shot takes over under .dark. */
+.mh-shot {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 8px auto 4px;
+  border: 1px solid var(--mh-line);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(27, 39, 50, 0.06), 0 12px 32px rgba(18, 80, 143, 0.10);
+}
+.dark .mh-shot {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.mh-shot-dark { display: none; }
+.dark .mh-shot-light { display: none; }
+.dark .mh-shot-dark { display: block; }
+
+/* Centered figure wrapper with a mono caption, echoing the app's station legend. */
+.mh-figure {
+  margin: 24px auto 8px;
+  max-width: 920px;
+}
+.mh-figure figcaption {
+  font-family: var(--vp-font-family-mono);
+  font-size: 13px;
+  color: var(--vp-c-text-2);
+  text-align: center;
+  margin-top: 6px;
+}

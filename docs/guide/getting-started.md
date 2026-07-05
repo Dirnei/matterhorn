@@ -16,6 +16,14 @@ docker compose up --build
 | EMQX dashboard | `http://localhost:16083` — login `admin` / `public` |
 | MQTT broker | `localhost:16883`, base topic `matterhorn` |
 
+Open the dashboard and you'll see the two seeded demo devices — a colour light and a motion
+sensor — as live cards:
+
+<figure class="mh-figure">
+  <img class="mh-shot mh-shot-light" src="/dashboard-light.png" alt="Matterhorn dashboard with the seeded demo colour light and motion sensor" />
+  <img class="mh-shot mh-shot-dark" src="/dashboard-dark.png" alt="Matterhorn dashboard with the seeded demo colour light and motion sensor" />
+</figure>
+
 ## With real devices
 
 **1. Run the Matter controller (matterjs-server) on your Linux host / Pi:**

@@ -17,6 +17,13 @@ Matter's multi-admin), and re-publishes them as a Zigbee2MQTT-shaped **MQTT** su
 API, and a small **web dashboard**. MQTT and REST are two projections of one internal model —
 anything you can see or do on one, you can on the other.
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/public/dashboard-dark.png" />
+    <img src="docs/public/dashboard-light.png" width="820" alt="Matterhorn web dashboard — a colour light and a motion sensor as live device cards" />
+  </picture>
+</p>
+
 ## Why
 
 Matter was supposed to end smart-home lock-in, but in practice a device ends up tied to whatever

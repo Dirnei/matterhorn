@@ -5,6 +5,9 @@ hero:
   name: Matterhorn
   text: Your Matter devices on MQTT
   tagline: Because the only thing that matters is to keep your data on your own infrastructure.
+  image:
+    src: /logo.png
+    alt: Matterhorn
   actions:
     - theme: brand
       text: Get Started
@@ -23,3 +26,9 @@ features:
   - title: Web dashboard
     details: Live device cards over Server-Sent Events, with controls generated from each device's capabilities — on/off, brightness, colour temperature, an RGB colour wheel, and sensor readouts. Rename or unpair a device from its card menu.
 ---
+
+<figure class="mh-figure">
+  <img class="mh-shot mh-shot-light" src="/dashboard-light.png" alt="Matterhorn web dashboard showing a colour light and a motion sensor as live device cards" />
+  <img class="mh-shot mh-shot-dark" src="/dashboard-dark.png" alt="Matterhorn web dashboard showing a colour light and a motion sensor as live device cards" />
+  <figcaption>The bridge station — live device cards, generated from each device's capabilities.</figcaption>
+</figure>
