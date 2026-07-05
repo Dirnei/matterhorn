@@ -18,5 +18,8 @@ public record SetDevice(string FriendlyName, IReadOnlyDictionary<string, JsonEle
 /// <summary>Signals the broker (re)connected — re-announce all retained bridge + device state.</summary>
 public record MqttConnected;
 
+/// <summary>HA's birth message appeared on {discoveryPrefix}/status — re-announce discovery configs and states.</summary>
+public record HaStatusOnline;
+
 /// <summary>Published on the EventStream when the device set changes (feeds SSE).</summary>
 public record DeviceListChanged;

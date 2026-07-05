@@ -366,4 +366,95 @@ public class MatterGatewayActorTests : TestKit
         Assert.False(result.Found);
         Assert.Empty(fake.Removed);
     }
+
+    [Fact]
+    public void NodeAdded_publishes_ha_discovery_configs_when_enabled()
+    {
+        var fake = new FakeMatterController();
+        var mqtt = new InMemoryMqttPublisher();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, mqtt, new MqttTopics("matterhorn"), null, "homeassistant"));
+
+        fake.Emit(new NodeAdded(Light(1)));
+
+        AwaitAssert(() => Assert.Contains(mqtt.Messages, m =>
+            m.Topic == "homeassistant/light/matterhorn_1_1/light/config" && m.Retained
+            && m.Payload.Contains("\"unique_id\":\"matterhorn_1_1_light\"")));
+    }
+
+    [Fact]
+    public void NodeAdded_publishes_no_ha_discovery_when_disabled()
+    {
+        var fake = new FakeMatterController();
+        var mqtt = new InMemoryMqttPublisher();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, mqtt, new MqttTopics("matterhorn")));
+
+        fake.Emit(new NodeAdded(Light(1)));
+
+        AwaitAssert(() => Assert.Contains(mqtt.Messages, m => m.Topic == "matterhorn/bridge/devices"));
+        Assert.DoesNotContain(mqtt.Messages, m => m.Topic.StartsWith("homeassistant/"));
+    }
+
+    [Fact]
+    public void NodeRemoved_clears_ha_discovery_configs()
+    {
+        var fake = new FakeMatterController();
+        var mqtt = new InMemoryMqttPublisher();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, mqtt, new MqttTopics("matterhorn"), null, "homeassistant"));
+        fake.Emit(new NodeAdded(Light(1)));
+        AwaitAssert(() => Assert.Contains(mqtt.Messages, m => m.Topic == "homeassistant/light/matterhorn_1_1/light/config"));
+
+        fake.Emit(new NodeRemoved(1));
+
+        // Retained empty payload deletes the config -> the entity disappears from HA.
+        AwaitAssert(() => Assert.Contains(mqtt.Messages, m =>
+            m.Topic == "homeassistant/light/matterhorn_1_1/light/config" && m.Payload == "" && m.Retained));
+    }
+
+    [Fact]
+    public void Rename_republishes_ha_discovery_on_the_same_topic_with_the_new_name()
+    {
+        var fake = new FakeMatterController();
+        var mqtt = new InMemoryMqttPublisher();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, mqtt, new MqttTopics("matterhorn"), new InMemoryNameStore(), "homeassistant"));
+        fake.Emit(new NodeAdded(Light(5)));
+        AwaitAssert(() => Assert.Single(gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result));
+
+        Assert.True(gw.Ask<RenameResult>(new RenameRequest("bulb_5_1", "lamp", "tx1")).Result.Ok);
+
+        AwaitAssert(() => Assert.Contains(mqtt.Messages, m =>
+            m.Topic == "homeassistant/light/matterhorn_5_1/light/config" // topic unchanged
+            && m.Payload.Contains("\"state_topic\":\"matterhorn/lamp\"")));
+    }
+
+    [Fact]
+    public void HaStatusOnline_republishes_discovery_for_all_devices()
+    {
+        var fake = new FakeMatterController();
+        var mqtt = new InMemoryMqttPublisher();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, mqtt, new MqttTopics("matterhorn"), null, "homeassistant"));
+        fake.Emit(new NodeAdded(Light(1)));
+        AwaitAssert(() => Assert.Contains(mqtt.Messages, m => m.Topic == "homeassistant/light/matterhorn_1_1/light/config"));
+        while (mqtt.Messages.TryDequeue(out _)) { } // drain, then expect a fresh announcement
+
+        gw.Tell(new HaStatusOnline());
+
+        AwaitAssert(() => Assert.Contains(mqtt.Messages, m =>
+            m.Topic == "homeassistant/light/matterhorn_1_1/light/config" && m.Payload != ""));
+    }
+
+    [Fact]
+    public void MqttConnected_republishes_ha_discovery()
+    {
+        var fake = new FakeMatterController();
+        var mqtt = new InMemoryMqttPublisher();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, mqtt, new MqttTopics("matterhorn"), null, "homeassistant"));
+        fake.Emit(new NodeAdded(Light(1)));
+        AwaitAssert(() => Assert.Contains(mqtt.Messages, m => m.Topic == "homeassistant/light/matterhorn_1_1/light/config"));
+        while (mqtt.Messages.TryDequeue(out _)) { }
+
+        gw.Tell(new MqttConnected());
+
+        AwaitAssert(() => Assert.Contains(mqtt.Messages, m =>
+            m.Topic == "homeassistant/light/matterhorn_1_1/light/config" && m.Payload != ""));
+    }
 }
