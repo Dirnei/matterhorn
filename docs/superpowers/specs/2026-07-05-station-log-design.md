@@ -16,8 +16,8 @@ once the device has essentially already joined. The upstream event catalog is ex
 currently parses four of them.
 
 Given that, the goal is not fake telemetry but **visibility**: surface the events that *do*
-happen, in a live log window, and fill the commissioning wait with an honest in-progress
-indicator.
+happen, in a live log window. (Filling the commissioning wait itself with an in-progress
+indicator is a separate feature — see Out of scope.)
 
 ## What we're building
 
@@ -97,10 +97,7 @@ the mockups (enzian/loden/alpenglow accents, mono type). The client:
 
 - keeps two arrays (activity / raw) and renders the active mode;
 - auto-scrolls unless **paused**; **clear** empties the view only (not the server buffer);
-- hydrates from the replayed buffer on load;
-- **commissioning ticker**: while a commission is in flight (after "commission accepted",
-  before "joined"/"failed"), shows a live `…interviewing (0:14)` line with a "usually 30–60s"
-  hint, so the silent wait shows movement. This directly addresses the original complaint.
+- hydrates from the replayed buffer on load.
 
 ## Error handling
 
@@ -126,3 +123,6 @@ the mockups (enzian/loden/alpenglow accents, mono type). The client:
 - No configurable buffer sizes (constants).
 - No widening of the upstream parser to the five currently-ignored event types (can revisit if
   Raw mode proves it needs them).
+- **No commissioning in-progress indicator** (the `…interviewing` ticker/spinner). That is a
+  separate feature with its own spec; this PR ships only the log. The Station Log will still
+  *show* the commission events as they arrive, which is the visibility win.
