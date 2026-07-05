@@ -79,6 +79,11 @@
   .row { display:flex; align-items:center; justify-content:space-between; gap:14px; }
   .readout { font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:14px; }
   .readout .u { color:var(--muted); font-size:11px; margin-left:3px; }
+  /* editable value field — looks like a readout, accepts typed input */
+  input.entry { font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:14px;
+                width:66px; text-align:right; padding:2px 7px; border-radius:6px; }
+  input.entry[type=number] { -moz-appearance:textfield; appearance:textfield; }
+  input.entry::-webkit-outer-spin-button, input.entry::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
   .ctl { display:flex; flex-direction:column; gap:7px; }
   .ctl .row { margin:0; }
 
@@ -369,7 +374,11 @@ function station(d){
 
 function colorControl(name){
   const wrap=document.createElement('div'); wrap.className='ctl';
-  wrap.innerHTML=`<div class="row"><span class="legend">color</span></div><div class="picker"></div>`;
+  wrap.innerHTML=`<div class="row"><span class="legend">color</span></div><div class="picker"></div>
+    <div class="row"><span class="legend">hue</span>
+      <input class="entry" type="number" inputmode="numeric" min="0" max="${HSMAX}" data-prop="hue" aria-label="hue value"></div>
+    <div class="row"><span class="legend">saturation</span>
+      <input class="entry" type="number" inputmode="numeric" min="0" max="${HSMAX}" data-prop="saturation" aria-label="saturation value"></div>`;
   const mount=wrap.querySelector('.picker');
   const picker=new iro.ColorPicker(mount,{width:150,color:{h:0,s:0,v:100},layout:[{component:iro.ui.Wheel}]});
   const rec={picker,dragging:false};
@@ -380,6 +389,13 @@ function colorControl(name){
     const {h,s}=picker.color.hsv;
     patch(name,{hue:Math.round(h*HSMAX/360), saturation:Math.round(s*HSMAX/100)});
   });
+  // Raw HS entry: edit the exact Matter values (0–HSMAX). Commit on Enter or blur.
+  const clamp=v=>Math.min(HSMAX,Math.max(0,Math.round(v)));
+  for (const prop of ['hue','saturation']){
+    const box=wrap.querySelector(`input.entry[data-prop="${prop}"]`);
+    box.addEventListener('change',()=>{ if(box.value==='') return; const v=clamp(Number(box.value)); box.value=v; patch(name,{[prop]:v}); });
+    box.addEventListener('keydown',ev=>{ if(ev.key==='Enter'){ ev.preventDefault(); box.blur(); } });
+  }
   return wrap;
 }
 
@@ -393,18 +409,25 @@ function control(name,e){
   } else {
     wrap.className='ctl';
     const min=e.value_min??0, max=e.value_max??254;
-    wrap.innerHTML=`<div class="row"><span class="legend">${esc(e.property.replace('_',' '))}</span>
-        <span class="readout" data-prop="${e.property}-val">—</span></div>
+    const label=esc(e.property.replace('_',' '));
+    wrap.innerHTML=`<div class="row"><span class="legend">${label}</span>
+        <input class="entry" type="number" inputmode="numeric" min="${min}" max="${max}" data-prop="${e.property}-val" aria-label="${label} value"></div>
       <input type="range" min="${min}" max="${max}" data-prop="${e.property}">`;
-    const s=wrap.querySelector('input');
+    const s=wrap.querySelector('input[type=range]');
+    const box=wrap.querySelector('input[type=number]');
+    const clamp=v=>Math.min(max,Math.max(min,Math.round(v)));
     // Suppress live updates only while actively dragging — a range input keeps focus after you
     // release it, so guarding on focus alone would freeze the slider until you clicked elsewhere.
     const startDrag=()=>s.dataset.dragging='1', endDrag=()=>delete s.dataset.dragging;
     s.addEventListener('pointerdown',startDrag);
     s.addEventListener('pointerup',endDrag);
     s.addEventListener('pointercancel',endDrag);
-    s.addEventListener('input',()=>wrap.querySelector('[data-prop$="-val"]').textContent=s.value);
+    s.addEventListener('input',()=>{ if(box!==document.activeElement) box.value=s.value; });
     s.addEventListener('change',()=>{ endDrag(); patch(name,{[e.property]:Number(s.value)}); });
+    // Typed entry: mirror the slider live, commit (clamp + patch) on Enter or blur.
+    box.addEventListener('input',()=>{ if(box.value!=='') s.value=clamp(Number(box.value)); });
+    box.addEventListener('change',()=>{ if(box.value==='') return; const v=clamp(Number(box.value)); box.value=v; s.value=v; patch(name,{[e.property]:v}); });
+    box.addEventListener('keydown',ev=>{ if(ev.key==='Enter'){ ev.preventDefault(); box.blur(); } });
   }
   return wrap;
 }
@@ -423,7 +446,7 @@ function applyState(name){
     const t=el.querySelector(`input[type=checkbox][data-prop="${prop}"]`);
     if (t){ t.checked=String(val).toUpperCase()==='ON'; continue; }
     const sl=el.querySelector(`input[type=range][data-prop="${prop}"]`);
-    if (sl){ if(sl.dataset.dragging!=='1'){ sl.value=val; const lbl=el.querySelector(`[data-prop="${prop}-val"]`); if(lbl) lbl.textContent=val; } continue; }
+    if (sl){ if(sl.dataset.dragging!=='1'){ sl.value=val; const box=el.querySelector(`input[type=number][data-prop="${prop}-val"]`); if(box && box!==document.activeElement) box.value=val; } continue; }
     const ro=el.querySelector(`.readout[data-prop="${prop}"]`);
     if (ro) ro.firstChild.textContent=fmt(val);
   }
@@ -431,6 +454,12 @@ function applyState(name){
   const rec=pickers.get(name);
   if (rec && !rec.dragging && s.hue!=null && s.saturation!=null)
     rec.picker.color.hsv={ h:s.hue*360/HSMAX, s:s.saturation*100/HSMAX, v:100 };
+  // Raw HS entry fields track live state (unless the user is editing one).
+  for (const prop of ['hue','saturation']){
+    if (s[prop]==null) continue;
+    const box=el.querySelector(`input.entry[data-prop="${prop}"]`);
+    if (box && box!==document.activeElement) box.value=s[prop];
+  }
   // De-emphasize whichever color representation is not the live one (ColorMode).
   if (rec){
     const pk=el.querySelector('.picker');
