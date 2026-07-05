@@ -100,9 +100,12 @@ public static class MatterServerProtocol
                     data[2].Clone()));
                 break;
 
-            // node_added data is the full MatterNodeData object.
+            // node_added data is the full MatterNodeData object. Emit the device (NodeAdded) first, then
+            // seed its current state from the snapshot's cached attribute values (NodeAdded must precede
+            // the readings so the endpoint actor exists before they route to it).
             case "node_added":
                 foreach (var added in ParseNode(data)) yield return added;
+                foreach (var reading in ParseNodeState(data)) yield return reading;
                 break;
 
             // node_updated carries the full node again; surface its availability as reachability
@@ -128,8 +131,37 @@ public static class MatterServerProtocol
         if (!doc.RootElement.TryGetProperty("result", out var result) || result.ValueKind != JsonValueKind.Array)
             yield break;
         foreach (var node in result.EnumerateArray())
-            foreach (var added in ParseNode(node))
-                yield return added;
+        {
+            foreach (var added in ParseNode(node)) yield return added;
+            foreach (var reading in ParseNodeState(node)) yield return reading;
+        }
+    }
+
+    /// <summary>
+    /// Reads the mappable current-state attributes out of a full node snapshot (the array from
+    /// <c>start_listening</c>, or a <c>node_added</c> payload) as <see cref="AttributeChanged"/> events,
+    /// so retained state is seeded on (re)connect from the values the matter-server already cached
+    /// rather than waiting for the next <c>attribute_updated</c>. Root-endpoint (0) attributes are
+    /// skipped — endpoint 0 is the node, not a device, and has no endpoint actor to route to.
+    /// </summary>
+    public static IEnumerable<AttributeChanged> ParseNodeState(JsonElement node)
+    {
+        if (!node.TryGetProperty("attributes", out var attrs) || attrs.ValueKind != JsonValueKind.Object)
+            yield break;
+
+        var nodeId = node.GetProperty("node_id").GetUInt64();
+        foreach (var attr in attrs.EnumerateObject())
+        {
+            var parts = attr.Name.Split('/');
+            if (parts.Length != 3
+                || !ushort.TryParse(parts[0], out var ep) || ep == 0
+                || !uint.TryParse(parts[1], out var cluster)
+                || !uint.TryParse(parts[2], out var attribute)
+                || !PropertyMapping.IsMappable(cluster, attribute))
+                continue;
+
+            yield return new AttributeChanged(new AttributeReading(nodeId, ep, cluster, attribute, attr.Value.Clone()));
+        }
     }
 
     /// <summary>

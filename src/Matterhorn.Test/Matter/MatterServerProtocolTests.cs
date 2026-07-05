@@ -127,8 +127,7 @@ public class MatterServerProtocolTests
     {
         var json = $$"""{"event":"node_added","data":{{BulbNode}}}""";
         // Only endpoint 1 is a device — the root endpoint 0 is skipped even though it has a Descriptor.
-        var evt = Assert.Single(MatterServerProtocol.ParseIncoming(json));
-        var info = Assert.IsType<NodeAdded>(evt).Endpoint;
+        var info = Assert.Single(MatterServerProtocol.ParseIncoming(json).OfType<NodeAdded>()).Endpoint;
         Assert.Equal(42ul, info.NodeId);
         Assert.Equal((ushort)1, info.Endpoint);
         Assert.Equal("Nanoleaf", info.VendorName);
@@ -145,7 +144,7 @@ public class MatterServerProtocolTests
     public void ParseIncoming_node_added_maps_device_type_to_a_name()
     {
         var json = $$"""{"event":"node_added","data":{{BulbNode}}}""";
-        var info = Assert.IsType<NodeAdded>(Assert.Single(MatterServerProtocol.ParseIncoming(json))).Endpoint;
+        var info = Assert.Single(MatterServerProtocol.ParseIncoming(json).OfType<NodeAdded>()).Endpoint;
         Assert.Contains("Light", info.DeviceType); // 0x0101 → "Dimmable Light"
     }
 
@@ -157,7 +156,7 @@ public class MatterServerProtocolTests
             "1/29/1":[6],"1/6/0":false
         }}}
         """;
-        var info = Assert.IsType<NodeAdded>(Assert.Single(MatterServerProtocol.ParseIncoming(json))).Endpoint;
+        var info = Assert.Single(MatterServerProtocol.ParseIncoming(json).OfType<NodeAdded>()).Endpoint;
         Assert.False(info.Reachable);
     }
 
@@ -204,8 +203,60 @@ public class MatterServerProtocolTests
     {
         // start_listening replies with the array of nodes already on the fabric (survives restarts).
         var json = $$"""{"message_id":"1","result":[{{BulbNode}}]}""";
-        var evt = Assert.Single(MatterServerProtocol.ParseNodeList(json));
-        Assert.Equal(42ul, Assert.IsType<NodeAdded>(evt).Endpoint.NodeId);
+        var evt = Assert.Single(MatterServerProtocol.ParseNodeList(json).OfType<NodeAdded>());
+        Assert.Equal(42ul, evt.Endpoint.NodeId);
+    }
+
+    [Fact]
+    public void ParseNode_seeds_current_state_from_the_snapshot_attributes()
+    {
+        // The snapshot already carries last-known values (OnOff 1/6/0=true, LevelControl 1/8/0=254);
+        // surface them as AttributeChanged so retained state is populated immediately on (re)connect
+        // instead of waiting for the next attribute_updated event.
+        var json = $$"""{"event":"node_added","data":{{BulbNode}}}""";
+        var readings = MatterServerProtocol.ParseIncoming(json).OfType<AttributeChanged>()
+            .Select(a => a.Reading).ToList();
+
+        var state = Assert.Single(readings, r => r.ClusterId == MatterClusters.OnOff && r.AttributeId == 0);
+        Assert.Equal((ushort)1, state.Endpoint);
+        Assert.Equal(42ul, state.NodeId);
+        Assert.True(state.Value.GetBoolean());
+
+        var level = Assert.Single(readings, r => r.ClusterId == MatterClusters.LevelControl && r.AttributeId == 0);
+        Assert.Equal(254, level.Value.GetInt32());
+    }
+
+    [Fact]
+    public void ParseNode_seeds_state_only_for_mappable_attributes()
+    {
+        // Identity/topology attributes (Descriptor ServerList, feature maps, BasicInformation) are not
+        // device state, so they must not leak into the seeded readings.
+        var json = $$"""{"event":"node_added","data":{{BulbNode}}}""";
+        var readings = MatterServerProtocol.ParseIncoming(json).OfType<AttributeChanged>().ToList();
+        Assert.All(readings, r => Assert.True(PropertyMapping.IsMappable(r.Reading.ClusterId, r.Reading.AttributeId)));
+    }
+
+    [Fact]
+    public void ParseNode_emits_NodeAdded_before_the_seeded_state()
+    {
+        // Ordering matters: the gateway must spawn the endpoint actor (NodeAdded) before the seeded
+        // readings route to it, so every NodeAdded has to precede the first AttributeChanged.
+        var json = $$"""{"event":"node_added","data":{{BulbNode}}}""";
+        var events = MatterServerProtocol.ParseIncoming(json).ToList();
+        var lastNodeAdded = events.FindLastIndex(e => e is NodeAdded);
+        var firstReading = events.FindIndex(e => e is AttributeChanged);
+        Assert.True(firstReading == -1 || lastNodeAdded < firstReading);
+    }
+
+    [Fact]
+    public void ParseNodeList_seeds_current_state_across_restarts()
+    {
+        // The whole point: after a Matterhorn restart the start_listening snapshot rehydrates state.
+        var json = $$"""{"message_id":"1","result":[{{BulbNode}}]}""";
+        var readings = MatterServerProtocol.ParseNodeList(json).OfType<AttributeChanged>()
+            .Select(a => a.Reading).ToList();
+        Assert.Contains(readings, r => r.ClusterId == MatterClusters.OnOff && r.Value.GetBoolean());
+        Assert.Contains(readings, r => r.ClusterId == MatterClusters.LevelControl && r.Value.GetInt32() == 254);
     }
 
     [Fact]
