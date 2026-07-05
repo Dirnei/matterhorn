@@ -83,4 +83,40 @@ public class CommandMappingTests
         Assert.Equal("MoveToSaturation", c.CommandName);
         Assert.Equal(77, Assert.IsType<int>(c.Payload["saturation"]));
     }
+
+    [Fact]
+    public void Nested_color_object_maps_to_MoveToHueAndSaturation_with_matter_ranges()
+    {
+        // HA's json-schema light sends {"color":{"h":0-360,"s":0-100}}.
+        var c = Assert.Single(CommandMapping.Map(Payload("""{"color":{"h":180,"s":100}}""")));
+        Assert.Equal(MatterClusters.ColorControl, c.ClusterId);
+        Assert.Equal("MoveToHueAndSaturation", c.CommandName);
+        Assert.Equal(127, Assert.IsType<int>(c.Payload["hue"]));        // 180/360 * 254
+        Assert.Equal(254, Assert.IsType<int>(c.Payload["saturation"])); // 100/100 * 254
+    }
+
+    [Fact]
+    public void Nested_color_values_are_clamped_to_the_matter_range()
+    {
+        var c = Assert.Single(CommandMapping.Map(Payload("""{"color":{"h":400,"s":150}}""")));
+        Assert.Equal(254, Assert.IsType<int>(c.Payload["hue"]));
+        Assert.Equal(254, Assert.IsType<int>(c.Payload["saturation"]));
+    }
+
+    [Fact]
+    public void Nested_color_with_h_only_maps_to_MoveToHue()
+    {
+        var c = Assert.Single(CommandMapping.Map(Payload("""{"color":{"h":90}}""")));
+        Assert.Equal("MoveToHue", c.CommandName);
+        Assert.Equal(64, Assert.IsType<int>(c.Payload["hue"])); // 90/360 * 254 = 63.5 -> 64
+    }
+
+    [Fact]
+    public void Flat_hue_and_saturation_win_over_nested_color()
+    {
+        var c = Assert.Single(CommandMapping.Map(
+            Payload("""{"hue":10,"saturation":20,"color":{"h":180,"s":50}}""")));
+        Assert.Equal("MoveToHueAndSaturation", c.CommandName);
+        Assert.Equal(10, Assert.IsType<int>(c.Payload["hue"])); // flat keys are already Matter-range
+    }
 }

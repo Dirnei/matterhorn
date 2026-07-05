@@ -49,6 +49,27 @@ public static class CommandMapping
             cmds.Add(new(MatterClusters.ColorControl, "MoveToSaturation",
                 new Dictionary<string, object?> { ["saturation"] = sat.GetInt32() }));
 
+        // HA's json-schema light sends color nested: {"color":{"h":0-360,"s":0-100}} (long-form
+        // hue/saturation keys allowed). Normalize to Matter's 0-254 ranges. Flat keys win.
+        if (!hasHue && !hasSat && setPayload.TryGetValue("color", out var color)
+            && color.ValueKind == JsonValueKind.Object)
+        {
+            double? h = color.TryGetProperty("h", out var hEl) ? hEl.GetDouble()
+                      : color.TryGetProperty("hue", out var hLong) ? hLong.GetDouble() : null;
+            double? s = color.TryGetProperty("s", out var sEl) ? sEl.GetDouble()
+                      : color.TryGetProperty("saturation", out var sLong) ? sLong.GetDouble() : null;
+            static int Scale(double value, double max) => Math.Clamp((int)Math.Round(value / max * 254), 0, 254);
+            if (h is not null && s is not null)
+                cmds.Add(new(MatterClusters.ColorControl, "MoveToHueAndSaturation",
+                    new Dictionary<string, object?> { ["hue"] = Scale(h.Value, 360), ["saturation"] = Scale(s.Value, 100) }));
+            else if (h is not null)
+                cmds.Add(new(MatterClusters.ColorControl, "MoveToHue",
+                    new Dictionary<string, object?> { ["hue"] = Scale(h.Value, 360), ["direction"] = 0 }));
+            else if (s is not null)
+                cmds.Add(new(MatterClusters.ColorControl, "MoveToSaturation",
+                    new Dictionary<string, object?> { ["saturation"] = Scale(s.Value, 100) }));
+        }
+
         return cmds;
     }
 
