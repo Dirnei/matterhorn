@@ -35,4 +35,20 @@ public class MqttTopicsTests
     {
         Assert.False(_t.TryParseSet("matterhorn/lamp", out _, out _));
     }
+
+    [Fact]
+    public void TryParseRequest_accepts_multi_segment_actions()
+    {
+        var t = new MqttTopics("matterhorn");
+        Assert.True(t.TryParseRequest("matterhorn/bridge/request/group/members/add", out var action));
+        Assert.Equal("group/members/add", action);
+    }
+
+    [Fact]
+    public void TryParseRequest_still_accepts_single_segment_actions()
+    {
+        var t = new MqttTopics("matterhorn");
+        Assert.True(t.TryParseRequest("matterhorn/bridge/request/commission", out var action));
+        Assert.Equal("commission", action);
+    }
 }

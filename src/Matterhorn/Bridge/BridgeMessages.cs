@@ -31,3 +31,6 @@ public record DeviceRegistered((ulong NodeId, ushort Endpoint) Key, string Frien
 
 /// <summary>Published on the EventStream per endpoint when a node is removed — drives group/scene pruning.</summary>
 public record DeviceRemoved((ulong NodeId, ushort Endpoint) Key);
+
+/// <summary>Startup wiring: hand the gateway the groups supervisor so it can forward group sets.</summary>
+public record RegisterGroups(Akka.Actor.IActorRef Groups);

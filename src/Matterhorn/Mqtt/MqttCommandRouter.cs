@@ -12,17 +12,17 @@ namespace Matterhorn.Mqtt;
 /// </summary>
 public static class MqttCommandRouter
 {
-    public static void Route(MqttTopics topics, string topic, string payload, ICanTell gateway)
+    public static void Route(MqttTopics topics, string topic, string payload, CommandTargets targets)
     {
         if (topics.TryParseSet(topic, out var name, out var attr))
         {
             var body = attr is null ? ParseObject(payload) : SingleAttr(attr, payload);
-            if (body.Count > 0) gateway.Tell(new SetDevice(name, body), ActorRefs.NoSender);
+            if (body.Count > 0) targets.Gateway.Tell(new SetDevice(name, body), ActorRefs.NoSender);
             return;
         }
 
         if (topics.TryParseRequest(topic, out var action))
-            RouteRequest(action, payload, gateway);
+            RouteRequest(action, payload, targets);
     }
 
     private static IReadOnlyDictionary<string, JsonElement> ParseObject(string payload)
@@ -41,31 +41,60 @@ public static class MqttCommandRouter
         return new Dictionary<string, JsonElement> { [attr] = value };
     }
 
-    private static void RouteRequest(string action, string payload, ICanTell gateway)
+    private static void RouteRequest(string action, string payload, CommandTargets targets)
     {
         JsonElement root;
         try { root = JsonDocument.Parse(string.IsNullOrWhiteSpace(payload) ? "{}" : payload).RootElement.Clone(); }
         catch (JsonException) { return; }
 
         string Tx() => root.TryGetProperty("transaction", out var t) ? t.GetString() ?? "" : "";
+
+        if (action.StartsWith("group/"))
+        {
+            RouteGroup(action["group/".Length..], root, targets.Groups);
+            return;
+        }
+
         switch (action)
         {
             case "commission":
                 if (root.TryGetProperty("code", out var code))
-                    gateway.Tell(new CommissionRequest(code.GetString() ?? "", Tx()), ActorRefs.NoSender);
+                    targets.Gateway.Tell(new CommissionRequest(code.GetString() ?? "", Tx()), ActorRefs.NoSender);
                 break;
             case "remove":
                 var id = root.TryGetProperty("id", out var i) ? i.GetString()
                        : root.TryGetProperty("friendly_name", out var f) ? f.GetString() : null;
                 if (!string.IsNullOrEmpty(id))
-                    gateway.Tell(new RemoveRequest(id, Tx()), ActorRefs.NoSender);
+                    targets.Gateway.Tell(new RemoveRequest(id, Tx()), ActorRefs.NoSender);
                 break;
             case "rename":
                 var from = root.TryGetProperty("from", out var fr) ? fr.GetString() : null;
                 var to = root.TryGetProperty("to", out var tr) ? tr.GetString() : null;
                 if (!string.IsNullOrEmpty(from) && !string.IsNullOrEmpty(to))
-                    gateway.Tell(new RenameRequest(from, to, Tx()), ActorRefs.NoSender);
+                    targets.Gateway.Tell(new RenameRequest(from, to, Tx()), ActorRefs.NoSender);
                 break;
         }
     }
+
+    private static void RouteGroup(string sub, JsonElement root, ICanTell groups)
+    {
+        string Tx() => root.TryGetProperty("transaction", out var t) ? t.GetString() ?? "" : "";
+        string? Str(string p) => root.TryGetProperty(p, out var v) ? v.GetString() : null;
+        switch (sub)
+        {
+            case "add" when Str("friendly_name") is { } n:
+                groups.Tell(new Groups.CreateGroup(n, Array.Empty<string>(), Tx()), ActorRefs.NoSender); break;
+            case "remove" when (Str("id") ?? Str("friendly_name")) is { } n:
+                groups.Tell(new Groups.DeleteGroup(n, Tx()), ActorRefs.NoSender); break;
+            case "rename" when Str("from") is { } f && Str("to") is { } t:
+                groups.Tell(new Groups.RenameGroup(f, t, Tx()), ActorRefs.NoSender); break;
+            case "members/add" when Str("group") is { } g && Str("device") is { } d:
+                groups.Tell(new Groups.AddGroupMember(g, d, Tx()), ActorRefs.NoSender); break;
+            case "members/remove" when Str("group") is { } g && Str("device") is { } d:
+                groups.Tell(new Groups.RemoveGroupMember(g, d, Tx()), ActorRefs.NoSender); break;
+        }
+    }
 }
+
+/// <summary>Recipients an inbound MQTT command can be routed to.</summary>
+public record CommandTargets(ICanTell Gateway, ICanTell Groups, ICanTell Scenes);

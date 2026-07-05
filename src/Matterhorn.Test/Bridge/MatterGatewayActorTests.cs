@@ -467,6 +467,25 @@ public class MatterGatewayActorTests : TestKit
     }
 
     [Fact]
+    public void SetDevice_for_a_group_name_forwards_GroupSet_to_the_groups_supervisor()
+    {
+        var groups = CreateTestProbe();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(
+            new FakeMatterController(), new InMemoryMqttPublisher(), new MqttTopics("matterhorn")));
+        gw.Tell(new RegisterGroups(groups.Ref));
+        // Force a round trip so the actor has fully started (and thus subscribed to the
+        // EventStream in its constructor) before we publish — Publish only reaches already-
+        // subscribed actors, so racing ahead of actor startup would silently drop the event.
+        gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Wait();
+        Sys.EventStream.Publish(new Matterhorn.Groups.GroupNamesChanged(new HashSet<string> { "living_room" }));
+
+        var payload = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>("""{"state":"OFF"}""")!;
+        gw.Tell(new SetDevice("living_room", payload));
+
+        groups.ExpectMsg<Matterhorn.Groups.GroupSet>(m => m.Name == "living_room" && m.Payload["state"].GetString() == "OFF");
+    }
+
+    [Fact]
     public void Rename_republishes_DeviceRegistered_with_the_new_name()
     {
         Sys.EventStream.Subscribe(TestActor, typeof(DeviceRegistered));

@@ -31,6 +31,8 @@ public sealed class MatterGatewayActor : ReceiveActor
     private readonly Dictionary<(ulong, ushort), Registered> _byKey = new();
     private readonly Dictionary<string, Registered> _byName = new();
     private ISourceQueueWithComplete<MatterEvent>? _queue;
+    private IActorRef? _groups;
+    private readonly HashSet<string> _groupNames = new();
 
     public static Props Props(IMatterController controller, IMqttPublisher mqtt, MqttTopics topics, INameStore? names = null) =>
         Akka.Actor.Props.Create(() => new MatterGatewayActor(controller, mqtt, topics, names));
@@ -40,6 +42,7 @@ public sealed class MatterGatewayActor : ReceiveActor
         _controller = controller; _mqtt = mqtt; _topics = topics;
         _names = names ?? NullNameStore.Instance;
         _overrides = new Dictionary<(ulong, ushort), string>(_names.Load());
+        Context.System.EventStream.Subscribe(Self, typeof(Matterhorn.Groups.GroupNamesChanged));
 
         Receive<NodeAdded>(OnNodeAdded);
         Receive<NodeRemoved>(OnNodeRemoved);
@@ -55,11 +58,14 @@ public sealed class MatterGatewayActor : ReceiveActor
         Receive<SetDevice>(s =>
         {
             if (_byName.TryGetValue(s.FriendlyName, out var reg)) reg.Actor.Tell(new ApplySet(s.Payload));
+            else if (_groupNames.Contains(s.FriendlyName)) _groups?.Tell(new Matterhorn.Groups.GroupSet(s.FriendlyName, s.Payload));
         });
         Receive<RouteSet>(r =>
         {
             if (_byKey.TryGetValue(r.Key, out var reg)) reg.Actor.Tell(new ApplySet(r.Payload));
         });
+        Receive<RegisterGroups>(r => _groups = r.Groups);
+        Receive<Matterhorn.Groups.GroupNamesChanged>(g => { _groupNames.Clear(); _groupNames.UnionWith(g.Names); });
         Receive<MqttConnected>(_ => AnnounceAll());
         Receive<GetDevices>(_ => Sender.Tell((IReadOnlyList<DeviceDescriptor>)_byName.Values.Select(r => r.Descriptor).ToList()));
         Receive<GetDeviceState>(g =>

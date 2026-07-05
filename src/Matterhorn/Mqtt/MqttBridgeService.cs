@@ -20,10 +20,12 @@ public sealed class MqttBridgeService(
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         var gateway = await registry.GetAsync<MatterGatewayActor>(ct);
+        var groups = await registry.GetAsync<Matterhorn.Groups.GroupsSupervisor>(ct);
+        var targets = new CommandTargets(gateway, groups, Akka.Actor.ActorRefs.Nobody); // Scenes wired in Part B (Task 15)
 
         client.OnMessageReceived += (_, e) =>
         {
-            try { MqttCommandRouter.Route(topics, e.PublishMessage.Topic ?? "", e.PublishMessage.PayloadAsString ?? "", gateway); }
+            try { MqttCommandRouter.Route(topics, e.PublishMessage.Topic ?? "", e.PublishMessage.PayloadAsString ?? "", targets); }
             catch (Exception ex) { logger.LogWarning(ex, "Failed to route inbound {Topic}", e.PublishMessage.Topic); }
         };
         client.AfterConnect += async (_, _) =>

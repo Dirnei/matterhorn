@@ -14,7 +14,7 @@ public sealed class MqttTopics(string baseTopic)
     public string SetSubscription() => $"{Base}/+/set";
     public string SetAttrSubscription() => $"{Base}/+/set/+";
     public string GetSubscription() => $"{Base}/+/get";
-    public string RequestSubscription() => $"{Base}/bridge/request/+";
+    public string RequestSubscription() => $"{Base}/bridge/request/#";
 
     public bool TryParseSet(string topic, out string friendlyName, out string? attr)
     {
@@ -32,6 +32,6 @@ public sealed class MqttTopics(string baseTopic)
         var prefix = $"{Base}/bridge/request/";
         if (!topic.StartsWith(prefix)) return false;
         action = topic[prefix.Length..];
-        return action.Length > 0 && !action.Contains('/');
+        return action.Length > 0;
     }
 }
