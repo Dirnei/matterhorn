@@ -12,8 +12,17 @@ namespace Matterhorn.Mqtt;
 /// </summary>
 public static class MqttCommandRouter
 {
-    public static void Route(MqttTopics topics, string topic, string payload, ICanTell gateway)
+    public static void Route(MqttTopics topics, string topic, string payload, ICanTell gateway,
+        string? haStatusTopic = null)
     {
+        // HA publishes its birth message here on startup; re-announce so entities reappear.
+        if (haStatusTopic is not null && topic == haStatusTopic)
+        {
+            if (payload.Trim().Equals("online", StringComparison.OrdinalIgnoreCase))
+                gateway.Tell(new HaStatusOnline(), ActorRefs.NoSender);
+            return;
+        }
+
         if (topics.TryParseSet(topic, out var name, out var attr))
         {
             var body = attr is null ? ParseObject(payload) : SingleAttr(attr, payload);

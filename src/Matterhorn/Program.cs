@@ -48,7 +48,8 @@ builder.Services.AddAkka("matterhorn", (b, sp) => b
     {
         var publisher = sp.GetRequiredService<IMqttPublisher>();
         var names = sp.GetRequiredService<INameStore>();
-        var gw = system.ActorOf(MatterGatewayActor.Props(controller, publisher, topics, names), "gateway");
+        var gw = system.ActorOf(MatterGatewayActor.Props(controller, publisher, topics, names,
+            cfg.HaEnabled ? cfg.HaDiscoveryTopic : null), "gateway");
         registry.Register<MatterGatewayActor>(gw);
     }));
 builder.Services.AddSingleton(sp =>

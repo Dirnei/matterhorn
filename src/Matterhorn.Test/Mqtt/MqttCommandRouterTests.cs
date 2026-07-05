@@ -74,4 +74,28 @@ public class MqttCommandRouterTests : TestKit
         MqttCommandRouter.Route(_topics, "matterhorn/lamp", "whatever", gw.Ref);
         gw.ExpectNoMsg(TimeSpan.FromMilliseconds(200));
     }
+
+    [Fact]
+    public void Ha_status_online_forwards_HaStatusOnline()
+    {
+        var gw = CreateTestProbe();
+        MqttCommandRouter.Route(_topics, "homeassistant/status", "online", gw.Ref, "homeassistant/status");
+        gw.ExpectMsg<HaStatusOnline>();
+    }
+
+    [Fact]
+    public void Ha_status_offline_forwards_nothing()
+    {
+        var gw = CreateTestProbe();
+        MqttCommandRouter.Route(_topics, "homeassistant/status", "offline", gw.Ref, "homeassistant/status");
+        gw.ExpectNoMsg(TimeSpan.FromMilliseconds(200));
+    }
+
+    [Fact]
+    public void Ha_status_topic_is_ignored_when_discovery_is_disabled()
+    {
+        var gw = CreateTestProbe();
+        MqttCommandRouter.Route(_topics, "homeassistant/status", "online", gw.Ref);
+        gw.ExpectNoMsg(TimeSpan.FromMilliseconds(200));
+    }
 }
