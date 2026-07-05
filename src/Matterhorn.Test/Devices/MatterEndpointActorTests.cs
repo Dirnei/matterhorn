@@ -87,4 +87,19 @@ public class MatterEndpointActorTests : TestKit
             Assert.Contains(mqtt.Messages, m => m.Topic == "matterhorn/desk_bulb/availability" && m.Payload == "online");
         });
     }
+
+    [Fact]
+    public void Hue_and_saturation_also_publish_a_nested_ha_color_object()
+    {
+        var mqtt = new InMemoryMqttPublisher();
+        var actor = Sys.ActorOf(MatterEndpointActor.Props("lamp", 1, 1, new FakeMatterController(), mqtt, new MqttTopics("matterhorn")));
+
+        actor.Tell(new ApplyAttribute(new AttributeReading(1, 1, MatterClusters.ColorControl, 0,
+            JsonDocument.Parse("127").RootElement))); // hue 127 -> h 180
+        actor.Tell(new ApplyAttribute(new AttributeReading(1, 1, MatterClusters.ColorControl, 1,
+            JsonDocument.Parse("254").RootElement))); // saturation 254 -> s 100
+
+        AwaitAssert(() => Assert.Contains(mqtt.Messages, m =>
+            m.Topic == "matterhorn/lamp" && m.Payload.Contains("\"color\":{\"h\":180,\"s\":100}")));
+    }
 }

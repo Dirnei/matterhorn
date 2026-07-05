@@ -65,4 +65,15 @@ public class PropertyMappingTests
         Assert.Equal(58, Assert.IsType<int>(props["saturation"]));
         Assert.Equal("hs", props["color_mode"]);
     }
+
+    [Fact]
+    public void Color_temperature_mode_maps_to_color_temp()
+    {
+        // HA's json-schema light (and Z2M) call this mode "color_temp", not "ct".
+        var props = PropertyMapping.Map(new[]
+        {
+            new AttributeReading(1, 1, MatterClusters.ColorControl, 8, JsonDocument.Parse("2").RootElement),
+        });
+        Assert.Equal("color_temp", props["color_mode"]);
+    }
 }

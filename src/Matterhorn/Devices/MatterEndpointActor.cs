@@ -57,9 +57,24 @@ public sealed class MatterEndpointActor : ReceiveActor
     {
         foreach (var (k, v) in PropertyMapping.Map(new[] { msg.Reading }))
             _state[k] = v;
+        SyncNestedColor();
         var json = JsonSerializer.Serialize(_state);
         _mqtt.PublishRetained(_topics.Device(_name), json);
         Context.System.EventStream.Publish(new DeviceStateChanged(_name, json));
+    }
+
+    // HA's json-schema light reads color nested ({"color":{"h":0-360,"s":0-100}}); keep that
+    // object in sync with the flat Matter-range hue/saturation properties.
+    private void SyncNestedColor()
+    {
+        var hasHue = _state.TryGetValue("hue", out var hue) && hue is int;
+        var hasSat = _state.TryGetValue("saturation", out var sat) && sat is int;
+        if (!hasHue && !hasSat) return;
+        _state["color"] = new Dictionary<string, object?>
+        {
+            ["h"] = hasHue ? (int)Math.Round((int)hue! * 360.0 / 254) : 0,
+            ["s"] = hasSat ? (int)Math.Round((int)sat! * 100.0 / 254) : 0,
+        };
     }
 
     private async Task OnSet(ApplySet msg)
