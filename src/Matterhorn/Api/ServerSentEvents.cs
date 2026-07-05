@@ -27,6 +27,7 @@ public static class ServerSentEvents
             system.EventStream.Subscribe(bridge, typeof(DeviceStateChanged));
             system.EventStream.Subscribe(bridge, typeof(DeviceListChanged));
             system.EventStream.Subscribe(bridge, typeof(LogEntry));
+            system.EventStream.Subscribe(bridge, typeof(Matterhorn.Groups.GroupListChanged));
             try
             {
                 await ctx.Response.WriteAsync(": connected\n\n", ctx.RequestAborted);
@@ -70,6 +71,7 @@ public sealed class SseBridgeActor : ReceiveActor
             $"{{\"type\":\"state\",\"device\":{JsonSerializer.Serialize(e.FriendlyName)},\"state\":{e.StateJson}}}"));
         Receive<DeviceListChanged>(_ => writer.TryWrite("{\"type\":\"devices\"}"));
         Receive<LogEntry>(e => writer.TryWrite(LogFrame(e)));
+        Receive<Matterhorn.Groups.GroupListChanged>(_ => writer.TryWrite("{\"type\":\"groups\"}"));
     }
 
     /// <summary>Renders one log line as the dashboard SSE frame. Shared by live (this actor) and
