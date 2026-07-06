@@ -28,6 +28,7 @@ public static class ServerSentEvents
             system.EventStream.Subscribe(bridge, typeof(DeviceListChanged));
             system.EventStream.Subscribe(bridge, typeof(LogEntry));
             system.EventStream.Subscribe(bridge, typeof(Matterhorn.Groups.GroupListChanged));
+            system.EventStream.Subscribe(bridge, typeof(Matterhorn.Scenes.SceneListChanged));
             try
             {
                 await ctx.Response.WriteAsync(": connected\n\n", ctx.RequestAborted);
@@ -72,6 +73,7 @@ public sealed class SseBridgeActor : ReceiveActor
         Receive<DeviceListChanged>(_ => writer.TryWrite("{\"type\":\"devices\"}"));
         Receive<LogEntry>(e => writer.TryWrite(LogFrame(e)));
         Receive<Matterhorn.Groups.GroupListChanged>(_ => writer.TryWrite("{\"type\":\"groups\"}"));
+        Receive<Matterhorn.Scenes.SceneListChanged>(_ => writer.TryWrite("{\"type\":\"scenes\"}"));
     }
 
     /// <summary>Renders one log line as the dashboard SSE frame. Shared by live (this actor) and

@@ -45,6 +45,18 @@ public class SseBridgeActorTests : TestKit
     }
 
     [Fact]
+    public async Task Forwards_scene_list_change()
+    {
+        var ch = Channel.CreateUnbounded<string>();
+        var actor = Sys.ActorOf(SseBridgeActor.Props(ch.Writer));
+
+        actor.Tell(new Matterhorn.Scenes.SceneListChanged());
+
+        var msg = await ch.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("""{"type":"scenes"}""", msg);
+    }
+
+    [Fact]
     public async Task Forwards_log_entry_as_sse_json()
     {
         var ch = Channel.CreateUnbounded<string>();
