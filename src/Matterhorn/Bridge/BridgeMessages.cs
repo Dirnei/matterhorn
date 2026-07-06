@@ -38,3 +38,6 @@ public record DeviceRemoved((ulong NodeId, ushort Endpoint) Key);
 
 /// <summary>Startup wiring: hand the gateway the groups supervisor so it can forward group sets.</summary>
 public record RegisterGroups(Akka.Actor.IActorRef Groups);
+
+/// <summary>Startup wiring: hand the gateway the scenes supervisor (symmetry with RegisterGroups).</summary>
+public record RegisterScenes(Akka.Actor.IActorRef Scenes);

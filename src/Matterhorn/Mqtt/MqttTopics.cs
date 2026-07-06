@@ -8,6 +8,7 @@ public sealed class MqttTopics(string baseTopic)
     public string BridgeInfo() => $"{Base}/bridge/info";
     public string BridgeDevices() => $"{Base}/bridge/devices";
     public string BridgeGroups() => $"{Base}/bridge/groups";
+    public string BridgeScenes() => $"{Base}/bridge/scenes";
     public string BridgeEvent() => $"{Base}/bridge/event";
     public string Device(string name) => $"{Base}/{name}";
     public string Availability(string name) => $"{Base}/{name}/availability";

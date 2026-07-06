@@ -70,6 +70,7 @@ public sealed class MatterGatewayActor : ReceiveActor
             else Sender.Tell(new DeviceStateSnapshot(false, null));
         });
         Receive<RegisterGroups>(r => _groups = r.Groups);
+        Receive<RegisterScenes>(_ => { });
         Receive<Matterhorn.Groups.GroupNamesChanged>(g => { _groupNames.Clear(); _groupNames.UnionWith(g.Names); });
         Receive<MqttConnected>(_ => AnnounceAll());
         Receive<GetDevices>(_ => Sender.Tell((IReadOnlyList<DeviceDescriptor>)_byName.Values.Select(r => r.Descriptor).ToList()));
