@@ -135,6 +135,32 @@
   .modal .danger { background:var(--alpenglow); border-color:transparent; color:#fff; font-weight:600; }
   .modal .danger:hover { filter:brightness(1.08); background:var(--alpenglow); }
 
+  /* Picker modal (device search + select) — used for group creation and (next) scene capture */
+  .modal.picker-modal { max-width:440px; }
+  .picker-name { width:100%; margin:2px 0 8px; }
+  .picker-note { margin:0 0 10px; font-size:12px; color:var(--muted); }
+  .picker-search-wrap { position:relative; margin-bottom:10px; }
+  .picker-search { width:100%; padding-left:30px; }
+  .picker-search-icon { position:absolute; left:9px; top:50%; transform:translateY(-50%); width:14px; height:14px; color:var(--muted); pointer-events:none; }
+  .picker-seg { display:flex; gap:2px; background:var(--surface2); border:1px solid var(--line); border-radius:8px; padding:2px; margin-bottom:10px; }
+  .picker-seg button { flex:1; background:transparent; border:none; padding:6px 10px; border-radius:6px; font-size:12px; color:var(--muted); }
+  .picker-seg button.active { background:var(--surface); color:var(--ink); font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,.15); }
+  .picker-list-wrap { position:relative; }
+  .picker-list { max-height:264px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:4px; }
+  .picker-list-wrap::after { content:""; position:absolute; left:1px; right:1px; bottom:1px; height:22px; border-radius:0 0 8px 8px;
+                             background:linear-gradient(to bottom, transparent, var(--surface)); pointer-events:none; }
+  .picker-item { display:flex; align-items:center; gap:8px; padding:6px; border-radius:6px; cursor:pointer; font-size:13px; }
+  .picker-item:hover { background:var(--surface2); }
+  .picker-item input[type=checkbox] { width:15px; height:15px; flex:none; padding:0; border-radius:4px; }
+  .pi-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pi-type { font-family:var(--mono); font-size:10px; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); flex:none; }
+  .pi-dot { width:8px; height:8px; border-radius:50%; background:var(--line); flex:none; }
+  .pi-dot.up { background:var(--loden); }
+  .picker-empty { padding:16px 6px; text-align:center; color:var(--muted); font-family:var(--mono); font-size:12px; }
+  .picker-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; padding-top:12px; border-top:1px solid var(--line); }
+  .picker-count { font-family:var(--mono); font-size:11px; color:var(--muted); }
+  .picker-footer .actions { display:flex; gap:10px; }
+
   @media (prefers-reduced-motion: reduce) { .switch .slot,.switch .knob{transition:none;} .link.live .bench{animation:none;} .menu.open,.modal{animation:none;} }
 
   /* Station Log dock */
@@ -182,8 +208,6 @@
   /* Groups view */
   .section-head { display:flex; align-items:center; justify-content:space-between; gap:16px 28px; flex-wrap:wrap; margin-bottom:14px; }
   .section-head .legend { font-size:13px; }
-  form.newgroup { display:flex; gap:8px; }
-  form.newgroup input { width:min(32vw,208px); }
   .groups-list { display:flex; flex-direction:column; border:1px solid var(--line); border-radius:12px;
                  background:var(--surface); overflow:hidden; }
   .group-strip + .group-strip { border-top:1px solid var(--line); }

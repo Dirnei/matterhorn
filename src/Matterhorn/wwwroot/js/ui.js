@@ -1,4 +1,6 @@
 // js/ui.js — small DOM-adjacent UI primitives shared across dashboard views.
+import * as store from './store.js';
+
 export function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2600); }
 
 export const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -101,6 +103,135 @@ export function confirmModal({ title, body, confirmLabel='Confirm', danger=false
     else if (!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
   });
   document.addEventListener('keydown', e=>{ if (e.key==='Escape') close(true); });
+
+  return { open };
+}
+
+// ---- picker modal: shared searchable device picker used to create groups and (next) capture
+// scenes. `opts = { title, submitLabel, note?, initialName, preselected?: Set<string>, onSubmit(name, deviceFriendlyNames[]) }`.
+// Renders into #modal-root (one instance per call site, like confirmModal/kebabMenu are one-per-menu).
+let pickerModalSeq = 0;
+
+export function createPickerModal(opts){
+  const id = 'picker-title-' + (++pickerModalSeq);
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML =
+    `<div class="modal picker-modal" role="dialog" aria-modal="true" aria-labelledby="${id}">
+       <h3 id="${id}"></h3>
+       <input class="picker-name" aria-label="Name" autocomplete="off" />
+       ${opts.note ? '<p class="picker-note"></p>' : ''}
+       <div class="picker-search-wrap">
+         <svg class="picker-search-icon" viewBox="0 0 24 24" aria-hidden="true">
+           <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+           <line x1="15.3" y1="15.3" x2="20.5" y2="20.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+         </svg>
+         <input class="picker-search" type="text" placeholder="search devices…" autocomplete="off" aria-label="Search devices" />
+       </div>
+       <div class="picker-seg" role="group" aria-label="Filter devices">
+         <button type="button" data-seg="controllable" aria-pressed="true">Controllable</button>
+         <button type="button" data-seg="all" aria-pressed="false">All</button>
+       </div>
+       <div class="picker-list-wrap"><div class="picker-list" role="listbox" aria-multiselectable="true"></div></div>
+       <div class="picker-footer">
+         <span class="picker-count"></span>
+         <div class="actions">
+           <button type="button" data-act="cancel">Cancel</button>
+           <button type="button" data-act="submit" class="go"></button>
+         </div>
+       </div>
+     </div>`;
+  document.getElementById('modal-root').appendChild(backdrop);
+
+  const titleEl = backdrop.querySelector('h3');
+  const nameEl = backdrop.querySelector('.picker-name');
+  const noteEl = backdrop.querySelector('.picker-note');
+  const searchEl = backdrop.querySelector('.picker-search');
+  const segBtns = [...backdrop.querySelectorAll('[data-seg]')];
+  const listEl = backdrop.querySelector('.picker-list');
+  const countEl = backdrop.querySelector('.picker-count');
+  const submitBtn = backdrop.querySelector('[data-act="submit"]');
+  submitBtn.textContent = opts.submitLabel;
+
+  let controllableOnly = true;
+  let selected = new Set();
+  let origin = null;
+
+  function setSeg(controllable){
+    controllableOnly = controllable;
+    segBtns.forEach(b=>{
+      const active = (b.dataset.seg==='controllable')===controllable;
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-pressed', String(active));
+    });
+  }
+
+  function renderList(){
+    const all = [...store.devices.values()];
+    const list = store.filterDevices(all, searchEl.value, controllableOnly);
+    listEl.innerHTML = list.length ? list.map(d=>{
+      const itemId = 'picker-item-' + cssId(d.friendly_name) + '-' + pickerModalSeq;
+      const checked = selected.has(d.friendly_name) ? ' checked' : '';
+      return `<label class="picker-item" for="${itemId}">
+         <input type="checkbox" id="${itemId}" data-name="${esc(d.friendly_name)}"${checked} />
+         <span class="pi-name">${esc(d.friendly_name)}</span>
+         <span class="pi-type">${esc(d.device_type||'')}</span>
+         <span class="pi-dot${d.reachable?' up':''}" title="${d.reachable?'reachable':'unreachable'}"></span>
+       </label>`;
+    }).join('') : '<div class="picker-empty">No matching devices</div>';
+    listEl.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+      cb.addEventListener('change', ()=>{
+        const n = cb.dataset.name;
+        if (cb.checked) selected.add(n); else selected.delete(n);
+        updateCount();
+      });
+    });
+    updateCount();
+  }
+  function updateCount(){ countEl.textContent = `${selected.size} selected`; }
+
+  searchEl.addEventListener('input', renderList);
+  segBtns.forEach(b=>b.addEventListener('click', ()=>{ setSeg(b.dataset.seg==='controllable'); renderList(); }));
+
+  function close(returnFocus){
+    if (!backdrop.classList.contains('open')) return;
+    backdrop.classList.remove('open');
+    if (returnFocus) origin?.focus();
+    origin = null;
+  }
+  backdrop.addEventListener('click', e=>{
+    if (e.target===backdrop){ close(true); return; }
+    const act = e.target.closest('button')?.dataset.act; if (!act) return;
+    if (act==='cancel'){ close(true); return; }
+    if (act==='submit'){
+      const name = nameEl.value.trim();
+      const members = [...selected];
+      opts.onSubmit(name, members);
+      close();
+    }
+  });
+  // keep focus inside the modal while it is open (name/search/toggle/checklist/actions)
+  backdrop.addEventListener('keydown', e=>{
+    if (!backdrop.classList.contains('open') || e.key!=='Tab') return;
+    const focusables = [...backdrop.querySelectorAll('input, button')];
+    const first = focusables[0], last = focusables[focusables.length-1];
+    if (e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
+  });
+  document.addEventListener('keydown', e=>{ if (e.key==='Escape') close(true); });
+
+  function open(originBtn){
+    origin = originBtn || null;
+    titleEl.textContent = opts.title;
+    if (noteEl) noteEl.textContent = opts.note;
+    nameEl.value = opts.initialName || '';
+    searchEl.value = '';
+    selected = new Set(opts.preselected || []);
+    setSeg(true);
+    renderList();
+    backdrop.classList.add('open');
+    nameEl.focus();
+  }
 
   return { open };
 }

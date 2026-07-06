@@ -1,5 +1,5 @@
 // js/views/groups.js — group cards: master switch, member add/remove, kebab rename/delete, create form.
-import { esc, cssId, toast, kebabMenu, confirmModal, inlineRename } from '../ui.js';
+import { esc, cssId, toast, kebabMenu, confirmModal, inlineRename, createPickerModal } from '../ui.js';
 import { api } from '../api.js';
 import * as store from '../store.js';
 
@@ -129,7 +129,10 @@ function startGroupRename(name){
       if (r.status===409) toast('That name is already taken');
       else if (r.status===400) toast('That name can’t be used');
       else if (!r.ok) toast('Rename failed');
-      else { toast('Renamed'); load(); }
+      else {
+        if (expanded.delete(name)) expanded.add(to);   // keep expand state under the new name
+        toast('Renamed'); load();
+      }
     } catch(e){ if(e.message!=='401') toast('Rename failed'); }
   }, 'New group name');
 }
@@ -139,38 +142,46 @@ const groupMenu = kebabMenu([
   { label:'⌫ Delete…', danger:true, onClick: (name, origin) => groupDeleteModal.open(origin, name) },
 ]);
 
+// ---- new-group picker (name + searchable device checklist, defaults to controllable devices) ----
+const newGroupModal = createPickerModal({
+  title: 'New group',
+  submitLabel: 'Create',
+  get initialName(){ return store.suggestName('group', new Set(store.groups.keys())); },
+  onSubmit: (name, members) => createGroup(name, members),
+});
+
 async function doDeleteGroup(name){
   try {
     const r = await api('/api/groups/'+encodeURIComponent(name), { method:'DELETE' });
     if (r.status===404) toast('Group not found');
     else if (!r.ok) toast('Delete failed');
-    else { toast('Deleting…'); load(); }
+    else { expanded.delete(name); toast('Deleting…'); load(); }
   } catch(e){ if(e.message!=='401') toast('Delete failed'); }
+}
+
+async function createGroup(name, members){
+  if (!name) return;
+  try {
+    const r = await api('/api/groups/'+encodeURIComponent(name), { method:'PUT', body:JSON.stringify({members}) });
+    if (r.status===409) toast('That name is already taken');
+    else if (r.status===400) toast('That name can’t be used');
+    else if (!r.ok) toast('Could not create group');
+    else toast('Group created');   // success path: SSE 'groups' frame refreshes the list
+  } catch(e){ if(e.message!=='401') toast('Could not create group'); }
 }
 
 export function mount(container){
   container.innerHTML =
     `<div class="section-head">
        <span class="legend">Groups</span>
-       <form class="newgroup" id="newGroupForm">
-         <input id="newGroupName" placeholder="group name" autocomplete="off" />
-         <button class="go" type="submit">New group</button>
-       </form>
+       <button class="go" id="newGroupBtn" type="button">New group</button>
      </div>
      <div class="groups-list" id="groupsGrid"></div>
      <div class="empty" id="groupsEmpty" hidden>No groups yet. Create one above.</div>`;
   groupsGrid = container.querySelector('#groupsGrid');
   emptyEl = container.querySelector('#groupsEmpty');
-  container.querySelector('#newGroupForm').addEventListener('submit', async ev=>{
-    ev.preventDefault();
-    const input=container.querySelector('#newGroupName');
-    const name=input.value.trim(); if(!name) return;
-    try {
-      const r = await api('/api/groups/'+encodeURIComponent(name), { method:'PUT', body:JSON.stringify({members:[]}) });
-      if (r.status===409) toast('That name is already taken');
-      else if (!r.ok) toast('Could not create group');
-      else { toast('Group created'); input.value=''; load(); }
-    } catch(e){ if(e.message!=='401') toast('Could not create group'); }
+  container.querySelector('#newGroupBtn').addEventListener('click', ev=>{
+    newGroupModal.open(ev.currentTarget);
   });
   mounted = true;
   return load();
