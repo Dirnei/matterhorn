@@ -40,6 +40,8 @@ services:
       Mqtt__Port: "1883"
       Mqtt__BaseTopic: "matterhorn"
       Storage__NamesFile: "/data/names.json"
+      Storage__GroupsFile: "/data/groups.json"
+      Storage__ScenesFile: "/data/scenes.json"
       ASPNETCORE_URLS: "http://+:80"
     ports:
       - "16090:80"     # REST + OpenAPI
