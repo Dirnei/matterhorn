@@ -102,8 +102,13 @@ so the REST shape matches the MQTT projection.
 ## MQTT topic conventions
 
 Zigbee2MQTT-shaped, under a configurable base topic (default `matterhorn`). `MqttTopics` is the
-single builder/parser for the tree: `<base>/<name>` (retained state), `<base>/<name>/set`,
-`<base>/<name>/availability`, `<base>/bridge/{state,devices,event}`, `<base>/bridge/request/<action>`.
+single builder/parser for the tree. Device topics: `<base>/<name>` (retained state), `<base>/<name>/set`,
+`<base>/<name>/availability`. Group/scene topics: `<base>/<group>` (retained optimistic group state),
+`<base>/<group>/set` (fan-out; groups share the device namespace), `<base>/bridge/{groups,scenes}` (retained lists).
+Control-plane requests: `<base>/bridge/{state,devices,event}`, `<base>/bridge/request/<action>`,
+`<base>/bridge/request/group/{add,remove,rename,members/add,members/remove}`, and
+`<base>/bridge/request/scene/{store,recall,remove,rename}`, with `<base>/bridge/response/{group,scene}/<action>`
+replies.
 
 ## Conventions
 
