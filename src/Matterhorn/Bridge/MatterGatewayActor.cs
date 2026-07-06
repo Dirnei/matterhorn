@@ -64,6 +64,11 @@ public sealed class MatterGatewayActor : ReceiveActor
         {
             if (_byKey.TryGetValue(r.Key, out var reg)) reg.Actor.Tell(new ApplySet(r.Payload));
         });
+        Receive<RouteGetState>(r =>
+        {
+            if (_byKey.TryGetValue(r.Key, out var reg)) reg.Actor.Forward(new GetState());
+            else Sender.Tell(new DeviceStateSnapshot(false, null));
+        });
         Receive<RegisterGroups>(r => _groups = r.Groups);
         Receive<Matterhorn.Groups.GroupNamesChanged>(g => { _groupNames.Clear(); _groupNames.UnionWith(g.Names); });
         Receive<MqttConnected>(_ => AnnounceAll());

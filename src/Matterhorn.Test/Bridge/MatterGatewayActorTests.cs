@@ -92,6 +92,29 @@ public class MatterGatewayActorTests : TestKit
     }
 
     [Fact]
+    public async Task RouteGetState_returns_the_device_snapshot()
+    {
+        var fake = new FakeMatterController();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, new InMemoryMqttPublisher(), new MqttTopics("matterhorn")));
+        fake.Emit(new NodeAdded(Light(9)));
+        fake.Emit(new AttributeChanged(new AttributeReading(9, 1, MatterClusters.OnOff, 0, JsonDocument.Parse("true").RootElement)));
+        AwaitAssert(() => Assert.NotEmpty(gw.Ask<IReadOnlyList<DeviceDescriptor>>(new GetDevices()).Result));
+
+        var snap = await gw.Ask<DeviceStateSnapshot>(new RouteGetState((9UL, (ushort)1)), TimeSpan.FromSeconds(2));
+
+        Assert.True(snap.Found);
+        Assert.Equal("ON", snap.State!["state"]!.ToString());
+    }
+
+    [Fact]
+    public async Task RouteGetState_for_unknown_key_returns_not_found()
+    {
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(new FakeMatterController(), new InMemoryMqttPublisher(), new MqttTopics("matterhorn")));
+        var snap = await gw.Ask<DeviceStateSnapshot>(new RouteGetState((404UL, (ushort)1)), TimeSpan.FromSeconds(2));
+        Assert.False(snap.Found);
+    }
+
+    [Fact]
     public void CommissionRequest_publishes_response_with_node_id()
     {
         var fake = new FakeMatterController { OnCommission = _ => 55 };

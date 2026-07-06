@@ -25,6 +25,10 @@ public record DeviceListChanged;
 /// No-op if no endpoint is registered under the key.</summary>
 public record RouteSet((ulong NodeId, ushort Endpoint) Key, IReadOnlyDictionary<string, JsonElement> Payload);
 
+/// <summary>Read a device's current state by stable key; replied to with <see cref="Matterhorn.Devices.DeviceStateSnapshot"/>
+/// (Found:false if no endpoint is registered under the key). Used by scene snapshot capture.</summary>
+public record RouteGetState((ulong NodeId, ushort Endpoint) Key);
+
 /// <summary>Published on the EventStream when a device joins or is renamed (upsert key→name).
 /// Consumed by the group/scene supervisors' name↔key read-model.</summary>
 public record DeviceRegistered((ulong NodeId, ushort Endpoint) Key, string FriendlyName);
