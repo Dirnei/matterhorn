@@ -128,7 +128,7 @@ export function createPickerModal(opts){
   backdrop.innerHTML =
     `<div class="modal picker-modal" role="dialog" aria-modal="true" aria-labelledby="${id}">
        <h3 id="${id}"></h3>
-       <input class="picker-name" aria-label="Name" autocomplete="off" />
+       ${opts.hideName ? '' : '<input class="picker-name" aria-label="Name" autocomplete="off" />'}
        ${opts.note ? '<p class="picker-note"></p>' : ''}
        <div class="picker-search-wrap">
          <svg class="picker-search-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -165,6 +165,8 @@ export function createPickerModal(opts){
   let controllableOnly = true;
   let selected = new Set();
   let origin = null;
+  let currentOnSubmit = opts.onSubmit;
+  let currentExclude = opts.exclude || null;
 
   function setSeg(controllable){
     controllableOnly = controllable;
@@ -177,12 +179,15 @@ export function createPickerModal(opts){
 
   function renderList(){
     const all = [...store.devices.values()].sort((a,b)=>a.friendly_name.localeCompare(b.friendly_name));
-    const list = store.filterDevices(all, searchEl.value, controllableOnly);
+    let list = store.filterDevices(all, searchEl.value, controllableOnly);
+    if (currentExclude) list = list.filter(d=>!currentExclude.has(d.friendly_name));
+    // NB: the label WRAPS the checkbox — do NOT add `for=`, or the row would toggle twice (net no-op),
+    // which is what made "only the checkbox is clickable, not the row". Implicit association = one toggle.
     listEl.innerHTML = list.length ? list.map(d=>{
       const itemId = 'picker-item-' + cssId(d.friendly_name) + '-' + pickerModalSeq;
-      const checked = selected.has(d.friendly_name) ? ' checked' : '';
-      return `<label class="picker-item" for="${itemId}">
-         <input type="checkbox" id="${itemId}" data-name="${esc(d.friendly_name)}"${checked} />
+      const checked = selected.has(d.friendly_name);
+      return `<label class="picker-item${checked?' selected':''}">
+         <input type="checkbox" id="${itemId}" data-name="${esc(d.friendly_name)}"${checked?' checked':''} />
          <span class="pi-name">${esc(d.friendly_name)}</span>
          <span class="pi-type">${esc(d.device_type||'')}</span>
          <span class="pi-dot${d.reachable?' up':''}" title="${d.reachable?'reachable':'unreachable'}"></span>
@@ -192,6 +197,7 @@ export function createPickerModal(opts){
       cb.addEventListener('change', ()=>{
         const n = cb.dataset.name;
         if (cb.checked) selected.add(n); else selected.delete(n);
+        cb.closest('.picker-item').classList.toggle('selected', cb.checked);
         updateCount();
       });
     });
@@ -213,9 +219,8 @@ export function createPickerModal(opts){
     const act = e.target.closest('button')?.dataset.act; if (!act) return;
     if (act==='cancel'){ close(true); return; }
     if (act==='submit'){
-      const name = nameEl.value.trim();
-      const members = [...selected];
-      opts.onSubmit(name, members);
+      const name = nameEl ? nameEl.value.trim() : '';
+      currentOnSubmit(name, [...selected]);
       close();
     }
   });
@@ -229,17 +234,22 @@ export function createPickerModal(opts){
   });
   document.addEventListener('keydown', e=>{ if (e.key==='Escape') close(true); });
 
-  function open(originBtn){
+  // open(originBtn, ctx?) — ctx overrides per opening: { exclude?:Set, onSubmit?, preselected?:Set, initialName? }.
+  // Lets one modal instance serve both "create" (name + all devices) and "add to existing" (no name, exclude current members).
+  function open(originBtn, ctx){
+    ctx = ctx || {};
     origin = originBtn || null;
+    currentOnSubmit = ctx.onSubmit || opts.onSubmit;
+    currentExclude = ctx.exclude || opts.exclude || null;
     titleEl.textContent = opts.title;
     if (noteEl) noteEl.textContent = opts.note;
-    nameEl.value = opts.initialName || '';
+    if (nameEl) nameEl.value = ctx.initialName ?? opts.initialName ?? '';
     searchEl.value = '';
-    selected = new Set(opts.preselected || []);
+    selected = new Set(ctx.preselected || opts.preselected || []);
     setSeg(true);
     renderList();
     backdrop.classList.add('open');
-    nameEl.focus();
+    (nameEl || searchEl).focus();
   }
 
   return { open };

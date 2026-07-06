@@ -29,7 +29,6 @@ function groupCard(g){
   const members=g.members||[];
   const isOpen=expanded.has(g.friendly_name);
   if (isOpen) el.classList.add('open');
-  const available=[...store.devices.keys()].filter(n=>!members.includes(n));
   el.innerHTML =
     `<div class="gs-row" role="button" tabindex="0" aria-expanded="${isOpen}">
        <svg class="gs-glyph" viewBox="0 0 24 24" aria-hidden="true">
@@ -49,15 +48,14 @@ function groupCard(g){
        </span>
      </div>
      <div class="expand"${isOpen?'':' hidden'}>
-       <div class="row chips">${members.length
-          ? members.map(m=>`<span class="chip">${esc(m)}<button data-remove="${esc(m)}" aria-label="Remove ${esc(m)}">${icon.close}</button></span>`).join('')
-          : '<span class="legend">no members</span>'}</div>
-       <div class="row add-member">
-         <select aria-label="Add device to group">
-           <option value="">＋ add device…</option>
-           ${available.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}
-         </select>
-       </div>
+       <div class="exp-head legend">members</div>
+       <div class="member-rows">${members.length
+          ? members.map(m=>memberRow(m)).join('')
+          : '<div class="member-empty legend">no members yet</div>'}</div>
+       <button class="add-devices" type="button">
+         <svg viewBox="0 0 14 14" width="13" height="13" aria-hidden="true"><path d="M7 3v8M3 7h8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+         Add devices
+       </button>
      </div>`;
   const row=el.querySelector('.gs-row');
   const tools=el.querySelector('.gs-tools');
@@ -71,22 +69,47 @@ function groupCard(g){
   el.querySelector('.kebab').addEventListener('click', ev=>{
     groupMenu.open(ev.currentTarget, g.friendly_name);
   });
-  el.querySelectorAll('.chip button').forEach(b=>b.addEventListener('click', async ()=>{
+  el.querySelectorAll('.m-remove').forEach(b=>b.addEventListener('click', async ()=>{
     const device=b.dataset.remove;
     try {
       const r=await api('/api/groups/'+encodeURIComponent(g.friendly_name)+'/members/'+encodeURIComponent(device),{method:'DELETE'});
       if(!r.ok) toast('Remove failed'); else load();
     } catch(e){ if(e.message!=='401') toast('Remove failed'); }
   }));
-  const sel=el.querySelector('select');
-  sel.addEventListener('change', async ()=>{
-    const device=sel.value; if(!device) return;
-    try {
-      const r=await api('/api/groups/'+encodeURIComponent(g.friendly_name)+'/members/'+encodeURIComponent(device),{method:'PUT'});
-      if(!r.ok) toast('Add failed'); else load();
-    } catch(e){ if(e.message!=='401') toast('Add failed'); }
+  el.querySelector('.add-devices').addEventListener('click', ev=>{
+    addDevicesModal.open(ev.currentTarget, {
+      exclude: new Set(g.members||[]),
+      onSubmit: (_n, devices)=>addMembers(g.friendly_name, devices),
+    });
   });
   return el;
+}
+
+// One member row inside the expanded group: live state dot + name + state text + remove.
+// State is read from the warm device cache; the dot reflects the last render (refreshes on group reload).
+function memberRow(m){
+  const s=store.deviceState.get(m)||{};
+  const has=s.state!=null;
+  const on=String(s.state||'').toUpperCase()==='ON';
+  const stateTxt = !has ? '' : (on ? (s.brightness!=null ? `on · ${Math.round(s.brightness/254*100)}%` : 'on') : 'off');
+  return `<div class="member-row">
+      <span class="m-dot${has?(on?' on':' off'):''}"></span>
+      <span class="m-name">${esc(m)}</span>
+      <span class="m-state">${stateTxt}</span>
+      <button class="m-remove" data-remove="${esc(m)}" aria-label="Remove ${esc(m)}">${icon.close}</button>
+    </div>`;
+}
+
+// Add the picked devices to the group (one PUT each); the SSE 'groups' frame + load() refresh the strip.
+async function addMembers(name, devices){
+  if (!devices.length) return;
+  try {
+    for (const d of devices){
+      const r=await api('/api/groups/'+encodeURIComponent(name)+'/members/'+encodeURIComponent(d),{method:'PUT'});
+      if(!r.ok){ toast('Add failed'); return; }
+    }
+    load();
+  } catch(e){ if(e.message!=='401') toast('Add failed'); }
 }
 
 // Expanded/collapsed state is kept in module-level `expanded` (not per-DOM-node) so it survives
@@ -152,6 +175,10 @@ const newGroupModal = createPickerModal({
   get initialName(){ return store.suggestName('group', new Set(store.groups.keys())); },
   onSubmit: (name, members) => createGroup(name, members),
 });
+
+// "Add devices" (from an expanded group) reuses the picker in add-mode: no name field, current
+// members excluded; exclude + onSubmit are supplied per-open with the group's context.
+const addDevicesModal = createPickerModal({ title: 'Add devices', submitLabel: 'Add', hideName: true });
 
 async function doDeleteGroup(name){
   try {
