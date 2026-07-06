@@ -24,6 +24,7 @@ public sealed class ScenesSupervisor : ReceiveActor
     private readonly Dictionary<string, Dictionary<(ulong, ushort), IReadOnlyDictionary<string, JsonElement>>> _scenes = new();
     private readonly Dictionary<string, IActorRef> _actors = new();
     private readonly Dictionary<(ulong, ushort), string> _deviceNames = new();
+    private int _seq;   // monotonic id for child actor names, decoupled from the (mutable) friendly name
 
     // Off-actor snapshot result piped back to Self.
     private sealed record SnapshotCaptured(string Name, string Transaction,
@@ -59,7 +60,11 @@ public sealed class ScenesSupervisor : ReceiveActor
     }
 
     private IActorRef SpawnEntity(string name, IReadOnlyDictionary<(ulong, ushort), IReadOnlyDictionary<string, JsonElement>> values) =>
-        Context.ActorOf(SceneActor.Props(name, values, _gateway), $"scene-{name}");
+        Context.ActorOf(SceneActor.Props(name, CopyValues(values), _gateway), $"scene-{_seq++}");
+
+    private static Dictionary<(ulong, ushort), IReadOnlyDictionary<string, JsonElement>> CopyValues(
+        IReadOnlyDictionary<(ulong, ushort), IReadOnlyDictionary<string, JsonElement>> values) =>
+        new(values);
 
     private void OnStore(StoreScene req)
     {
@@ -100,7 +105,7 @@ public sealed class ScenesSupervisor : ReceiveActor
     private void Commit(string slug, Dictionary<(ulong, ushort), IReadOnlyDictionary<string, JsonElement>> values, string tx, IActorRef replyTo)
     {
         _scenes[slug] = values;
-        if (_actors.TryGetValue(slug, out var existing)) existing.Tell(new UpdateSceneValues(values));
+        if (_actors.TryGetValue(slug, out var existing)) existing.Tell(new UpdateSceneValues(CopyValues(values)));
         else _actors[slug] = SpawnEntity(slug, values);
         Persist();
         var result = new SceneOpResult(true, null, slug);
@@ -144,7 +149,7 @@ public sealed class ScenesSupervisor : ReceiveActor
         _deviceNames.Remove(d.Key);
         var touched = false;
         foreach (var (scene, values) in _scenes)
-            if (values.Remove(d.Key)) { _actors[scene].Tell(new UpdateSceneValues(values)); touched = true; }
+            if (values.Remove(d.Key)) { _actors[scene].Tell(new UpdateSceneValues(CopyValues(values))); touched = true; }
         if (touched) Persist();
     }
 

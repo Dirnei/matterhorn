@@ -95,6 +95,29 @@ public class ScenesSupervisorTests : TestKit
     }
 
     [Fact]
+    public void RenameScene_then_storing_the_old_name_again_does_not_collide()
+    {
+        var (sup, _, _, _) = NewSupervisor();
+        var explicitState = new Dictionary<string, IReadOnlyDictionary<string, JsonElement>>
+        {
+            ["lamp"] = new Dictionary<string, JsonElement> { ["state"] = JsonDocument.Parse("\"OFF\"").RootElement.Clone() },
+        };
+        sup.Ask<SceneOpResult>(new StoreScene("a", new[] { "lamp" }, explicitState, "t1")).Wait();
+        sup.Ask<SceneOpResult>(new RenameScene("a", "b", "t2")).Wait();
+
+        var r = sup.Ask<SceneOpResult>(new StoreScene("a", new[] { "lamp" }, explicitState, "t3")).Result;
+        Assert.True(r.Ok);
+
+        AwaitAssert(() =>
+        {
+            sup.Tell(new GetScenes());
+            var views = ExpectMsg<IReadOnlyList<SceneView>>();
+            Assert.Contains(views, v => v.FriendlyName == "a");
+            Assert.Contains(views, v => v.FriendlyName == "b");
+        });
+    }
+
+    [Fact]
     public void DeviceRemoved_prunes_the_member_from_every_scene()
     {
         var (sup, _, _, store) = NewSupervisor();

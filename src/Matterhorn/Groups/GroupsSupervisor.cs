@@ -21,6 +21,7 @@ public sealed class GroupsSupervisor : ReceiveActor
     private readonly Dictionary<string, List<(ulong, ushort)>> _defs = new();       // group -> member keys
     private readonly Dictionary<string, IActorRef> _actors = new();                  // group -> entity
     private readonly Dictionary<(ulong, ushort), string> _deviceNames = new();       // key -> friendly name
+    private int _seq;   // monotonic id for child actor names, decoupled from the (mutable) friendly name
 
     public static Props Props(IGroupStore store, IActorRef gateway, IMqttPublisher mqtt, MqttTopics topics) =>
         Akka.Actor.Props.Create(() => new GroupsSupervisor(store, gateway, mqtt, topics));
@@ -53,7 +54,7 @@ public sealed class GroupsSupervisor : ReceiveActor
     }
 
     private IActorRef SpawnEntity(string name, IReadOnlyList<(ulong, ushort)> members) =>
-        Context.ActorOf(GroupActor.Props(name, members, _gateway, _mqtt, _topics), $"group-{name}");
+        Context.ActorOf(GroupActor.Props(name, new List<(ulong, ushort)>(members), _gateway, _mqtt, _topics), $"group-{_seq++}");
 
     private void OnCreate(CreateGroup req)
     {
@@ -63,7 +64,7 @@ public sealed class GroupsSupervisor : ReceiveActor
 
         var members = ResolveDevices(req.MemberDevices);
         _defs[slug] = members;
-        if (_actors.TryGetValue(slug, out var existing)) existing.Tell(new UpdateGroupMembers(members)); // replace
+        if (_actors.TryGetValue(slug, out var existing)) existing.Tell(new UpdateGroupMembers(new List<(ulong, ushort)>(members))); // replace
         else _actors[slug] = SpawnEntity(slug, members);
         Persist();
         Reply(new GroupOpResult(true, null, slug), "create", req.Transaction, req.Name);
@@ -103,7 +104,7 @@ public sealed class GroupsSupervisor : ReceiveActor
         if (key == default && add) { Reply(new GroupOpResult(false, "not_found"), "members/add", tx, group); return; }
         if (add && !members.Contains(key)) members.Add(key);
         else if (!add) members.Remove(key);
-        _actors[group].Tell(new UpdateGroupMembers(members));
+        _actors[group].Tell(new UpdateGroupMembers(new List<(ulong, ushort)>(members)));
         Persist();
         Reply(new GroupOpResult(true, null, group), add ? "members/add" : "members/remove", tx, group);
     }
@@ -113,7 +114,7 @@ public sealed class GroupsSupervisor : ReceiveActor
         _deviceNames.Remove(d.Key);
         var touched = false;
         foreach (var (group, members) in _defs)
-            if (members.Remove(d.Key)) { _actors[group].Tell(new UpdateGroupMembers(members)); touched = true; }
+            if (members.Remove(d.Key)) { _actors[group].Tell(new UpdateGroupMembers(new List<(ulong, ushort)>(members))); touched = true; }
         if (touched) Persist();
     }
 

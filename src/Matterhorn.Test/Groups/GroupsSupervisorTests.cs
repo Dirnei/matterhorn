@@ -96,6 +96,36 @@ public class GroupsSupervisorTests : TestKit
     }
 
     [Fact]
+    public void RenameGroup_then_recreating_the_old_name_does_not_collide()
+    {
+        var (sup, _, _, _) = NewSupervisor();
+        sup.Ask<GroupOpResult>(new CreateGroup("a", Array.Empty<string>(), "t1")).Wait();
+        sup.Ask<GroupOpResult>(new RenameGroup("a", "b", "t2")).Wait();
+
+        var r = sup.Ask<GroupOpResult>(new CreateGroup("a", Array.Empty<string>(), "t3")).Result;
+        Assert.True(r.Ok);
+
+        AwaitAssert(() =>
+        {
+            sup.Tell(new GetGroups());
+            var views = ExpectMsg<IReadOnlyList<GroupView>>();
+            Assert.Contains(views, v => v.FriendlyName == "a");
+            Assert.Contains(views, v => v.FriendlyName == "b");
+        });
+    }
+
+    [Fact]
+    public void DeleteGroup_then_recreating_the_same_name_does_not_collide()
+    {
+        var (sup, _, _, _) = NewSupervisor();
+        sup.Ask<GroupOpResult>(new CreateGroup("a", Array.Empty<string>(), "t1")).Wait();
+        sup.Ask<GroupOpResult>(new DeleteGroup("a", "t2")).Wait();
+
+        var r = sup.Ask<GroupOpResult>(new CreateGroup("a", Array.Empty<string>(), "t3")).Result;
+        Assert.True(r.Ok);
+    }
+
+    [Fact]
     public void CreateGroup_publishes_GroupNamesChanged()
     {
         Sys.EventStream.Subscribe(TestActor, typeof(GroupNamesChanged));
