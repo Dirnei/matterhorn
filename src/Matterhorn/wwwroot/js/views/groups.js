@@ -1,5 +1,5 @@
 // js/views/groups.js — group cards: master switch, member add/remove, kebab rename/delete, create form.
-import { esc, cssId, toast } from '../ui.js';
+import { esc, cssId, toast, kebabMenu, confirmModal, inlineRename } from '../ui.js';
 import { api } from '../api.js';
 import * as store from '../store.js';
 
@@ -48,9 +48,7 @@ function groupCard(g){
     patchGroup(g.friendly_name,{state:ev.target.checked?'ON':'OFF'}));
   el.querySelector('.kebab').addEventListener('click', ev=>{
     ev.stopPropagation();
-    const btn = ev.currentTarget;
-    if (groupMenu.classList.contains('open') && groupMenuBtn===btn){ closeGroupMenu(true); return; }
-    openGroupMenu(btn, g.friendly_name);
+    groupMenu.open(ev.currentTarget, g.friendly_name);
   });
   el.querySelectorAll('.chip button').forEach(b=>b.addEventListener('click', async ()=>{
     const device=b.dataset.remove;
@@ -85,59 +83,18 @@ function applyGroupState(name){
 }
 
 // ---- group kebab menu (rename / delete) ----
-const groupMenu = document.createElement('div');
-groupMenu.className = 'menu';
-groupMenu.innerHTML = `<button data-act="rename">✎ Rename</button><button data-act="delete" class="danger">⌫ Delete…</button>`;
-document.body.appendChild(groupMenu);
-let groupMenuTarget = null, groupMenuBtn = null;
-
-function openGroupMenu(btn, name){
-  groupMenuTarget = name;
-  groupMenuBtn?.setAttribute('aria-expanded','false');
-  groupMenuBtn = btn; btn.setAttribute('aria-expanded','true');
-  groupMenu.classList.add('open');
-  const r = btn.getBoundingClientRect();
-  groupMenu.style.top  = (window.scrollY + r.bottom + 4) + 'px';
-  groupMenu.style.left = (window.scrollX + r.right - groupMenu.offsetWidth) + 'px';
-  groupMenu.querySelector('button').focus();
-}
-function closeGroupMenu(returnFocus){
-  if (!groupMenu.classList.contains('open')) return;
-  groupMenu.classList.remove('open'); groupMenuTarget = null;
-  groupMenuBtn?.setAttribute('aria-expanded','false');
-  if (returnFocus) groupMenuBtn?.focus();
-}
-groupMenu.addEventListener('click', e=>{
-  const act = e.target.closest('button')?.dataset.act; if(!act) return;
-  const name = groupMenuTarget, origin = groupMenuBtn; closeGroupMenu();
-  if (act==='rename') startGroupRename(name);
-  else if (act==='delete') openGroupDelete(name, origin);
+const groupDeleteModal = confirmModal({
+  title: name => `Delete “${name}”?`,
+  body: 'The group and its member list will be removed. Member devices are not affected.',
+  confirmLabel: 'Delete',
+  danger: true,
+  onConfirm: doDeleteGroup,
 });
-groupMenu.addEventListener('keydown', e=>{
-  const items = [...groupMenu.querySelectorAll('button')];
-  const i = items.indexOf(document.activeElement);
-  if (e.key==='ArrowDown'){ e.preventDefault(); items[(i+1)%items.length].focus(); }
-  else if (e.key==='ArrowUp'){ e.preventDefault(); items[(i-1+items.length)%items.length].focus(); }
-  else if (e.key==='Escape'){ e.preventDefault(); closeGroupMenu(true); }
-});
-document.addEventListener('click', e=>{
-  if (groupMenu.classList.contains('open') && !groupMenu.contains(e.target)) closeGroupMenu();
-});
-document.addEventListener('keydown', e=>{ if (e.key==='Escape'){ closeGroupMenu(true); closeGroupDelete(true); } });
 
 function startGroupRename(name){
   const el = document.getElementById('grp-'+cssId(name)); if(!el) return;
-  const nameEl = el.querySelector('.name'); if(!nameEl || nameEl.querySelector('input')) return;
-  const input = document.createElement('input');
-  input.className = 'name-edit'; input.value = name; input.setAttribute('aria-label','New group name');
-  nameEl.replaceChildren(input); input.focus(); input.select();
-  let done = false;
-  const restore = ()=>{ nameEl.textContent = name; };          // SSE 'groups' will re-render with the real name
-  const cancel  = ()=>{ if(done) return; done = true; restore(); };
-  const commit  = async ()=>{
-    if(done) return; const to = input.value.trim();
-    if(!to || to===name){ done = true; restore(); return; }
-    done = true;
+  const nameEl = el.querySelector('.name'); if(!nameEl) return;
+  inlineRename(nameEl, name, async (to)=>{
     try {
       const r = await api('/api/groups/'+encodeURIComponent(name)+'/rename', { method:'POST', body:JSON.stringify({to}) });
       if (r.status===409) toast('That name is already taken');
@@ -145,54 +102,13 @@ function startGroupRename(name){
       else if (!r.ok) toast('Rename failed');
       else { toast('Renamed'); load(); }
     } catch(e){ if(e.message!=='401') toast('Rename failed'); }
-    restore();
-  };
-  input.addEventListener('keydown', e=>{
-    if (e.key==='Enter'){ e.preventDefault(); commit(); }
-    else if (e.key==='Escape'){ e.preventDefault(); cancel(); }
-  });
-  input.addEventListener('blur', cancel);
+  }, 'New group name');
 }
 
-// ---- group delete confirmation modal ----
-const groupBackdrop = document.createElement('div');
-groupBackdrop.className = 'modal-backdrop';
-groupBackdrop.innerHTML =
-  `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="groupDeleteTitle">
-     <h3 id="groupDeleteTitle">Delete group?</h3>
-     <p id="groupDeleteBody"></p>
-     <div class="actions"><button data-act="cancel">Cancel</button><button data-act="confirm" class="danger">Delete</button></div>
-   </div>`;
-document.body.appendChild(groupBackdrop);
-let groupDeleteTarget = null, groupDeleteBtn = null;
-
-function openGroupDelete(name, origin){
-  groupDeleteTarget = name; groupDeleteBtn = origin || null;
-  groupBackdrop.querySelector('#groupDeleteTitle').textContent = 'Delete “'+name+'”?';
-  groupBackdrop.querySelector('#groupDeleteBody').textContent =
-    'The group and its member list will be removed. Member devices are not affected.';
-  groupBackdrop.classList.add('open');
-  groupBackdrop.querySelector('[data-act="confirm"]').focus();
-}
-function closeGroupDelete(returnFocus){
-  if (!groupBackdrop.classList.contains('open')) return;
-  groupBackdrop.classList.remove('open'); groupDeleteTarget = null;
-  if (returnFocus) groupDeleteBtn?.focus();
-  groupDeleteBtn = null;
-}
-groupBackdrop.addEventListener('click', e=>{
-  if (e.target===groupBackdrop){ closeGroupDelete(true); return; }
-  const act = e.target.closest('button')?.dataset.act; if(!act) return;
-  if (act==='cancel'){ closeGroupDelete(true); return; }
-  if (act==='confirm'){ const name = groupDeleteTarget; closeGroupDelete(); doDeleteGroup(name); }
-});
-groupBackdrop.addEventListener('keydown', e=>{
-  if (!groupBackdrop.classList.contains('open') || e.key!=='Tab') return;
-  const btns = [...groupBackdrop.querySelectorAll('button')];
-  const first = btns[0], last = btns[btns.length-1];
-  if (e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
-  else if (!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
-});
+const groupMenu = kebabMenu([
+  { label:'✎ Rename', onClick: name => startGroupRename(name) },
+  { label:'⌫ Delete…', danger:true, onClick: (name, origin) => groupDeleteModal.open(origin, name) },
+]);
 
 async function doDeleteGroup(name){
   try {

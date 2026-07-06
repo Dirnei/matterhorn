@@ -1,5 +1,5 @@
 // js/views/devices.js — device stations grid: render, controls, color wheel, menu/rename/unpair.
-import { esc, cssId, fmt, toast } from '../ui.js';
+import { esc, cssId, fmt, toast, kebabMenu, confirmModal, inlineRename } from '../ui.js';
 import { api } from '../api.js';
 import * as store from '../store.js';
 
@@ -13,61 +13,19 @@ async function patch(name, body){
   catch(e){ if(e.message!=='401') toast('Set failed'); }
 }
 
-// ---- per-device actions: a single body-level menu + modal (the card clips overflow) ----
-const devMenu = document.createElement('div');
-devMenu.className = 'menu';
-devMenu.innerHTML = `<button data-act="rename">✎ Rename</button><button data-act="unpair" class="danger">⌫ Unpair…</button>`;
-document.body.appendChild(devMenu);
-let menuTarget = null, menuBtn = null;
-
-function openMenu(btn, name){
-  menuTarget = name;
-  menuBtn?.setAttribute('aria-expanded','false');      // reset a previously-open kebab when retargeting
-  menuBtn = btn; btn.setAttribute('aria-expanded','true');
-  devMenu.classList.add('open');                       // display first so offsetWidth is measurable
-  const r = btn.getBoundingClientRect();
-  devMenu.style.top  = (window.scrollY + r.bottom + 4) + 'px';
-  devMenu.style.left = (window.scrollX + r.right - devMenu.offsetWidth) + 'px';
-  devMenu.querySelector('button').focus();             // move focus into the menu (keyboard a11y)
-}
-function closeMenu(returnFocus){
-  if (!devMenu.classList.contains('open')) return;
-  devMenu.classList.remove('open'); menuTarget = null;
-  menuBtn?.setAttribute('aria-expanded','false');
-  if (returnFocus) menuBtn?.focus();                   // return focus to the invoking kebab
-}
-
-devMenu.addEventListener('click', e=>{
-  const act = e.target.closest('button')?.dataset.act; if(!act) return;
-  const name = menuTarget, origin = menuBtn; closeMenu();   // startRename/openUnpair focus their own target
-  if (act==='rename') startRename(name);
-  else if (act==='unpair') openUnpair(name, origin);
+// ---- per-device kebab menu (rename / unpair) ----
+const unpairModal = confirmModal({
+  title: name => `Unpair “${name}”?`,
+  body: 'It will be removed from the Matter fabric and must be re-paired with its setup code to return.',
+  confirmLabel: 'Unpair',
+  danger: true,
+  onConfirm: doUnpair,
 });
-devMenu.addEventListener('keydown', e=>{               // arrow-key navigation within the open menu
-  const items = [...devMenu.querySelectorAll('button')];
-  const i = items.indexOf(document.activeElement);
-  if (e.key==='ArrowDown'){ e.preventDefault(); items[(i+1)%items.length].focus(); }
-  else if (e.key==='ArrowUp'){ e.preventDefault(); items[(i-1+items.length)%items.length].focus(); }
-  else if (e.key==='Escape'){ e.preventDefault(); closeMenu(true); }
-});
-document.addEventListener('click', e=>{
-  if (devMenu.classList.contains('open') && !devMenu.contains(e.target)) closeMenu();
-});
-document.addEventListener('keydown', e=>{ if (e.key==='Escape'){ closeMenu(true); closeUnpair(true); } });
 
 function startRename(name){
   const el = document.getElementById('dev-'+cssId(name)); if(!el) return;
-  const nameEl = el.querySelector('.name'); if(!nameEl || nameEl.querySelector('input')) return;
-  const input = document.createElement('input');
-  input.className = 'name-edit'; input.value = name; input.setAttribute('aria-label','New device name');
-  nameEl.replaceChildren(input); input.focus(); input.select();
-  let done = false;
-  const restore = ()=>{ nameEl.textContent = name; };          // SSE 'devices' will re-render with the real name
-  const cancel  = ()=>{ if(done) return; done = true; restore(); };
-  const commit  = async ()=>{
-    if(done) return; const to = input.value.trim();
-    if(!to || to===name){ done = true; restore(); return; }
-    done = true;
+  const nameEl = el.querySelector('.name'); if(!nameEl) return;
+  inlineRename(nameEl, name, async (to)=>{
     try {
       const r = await api('/api/devices/'+encodeURIComponent(name)+'/rename', { method:'POST', body:JSON.stringify({to}) });
       if (r.status===409) toast('That name is already taken');
@@ -75,56 +33,13 @@ function startRename(name){
       else if (!r.ok) toast('Rename failed');
       else toast('Renamed');
     } catch(e){ if(e.message!=='401') toast('Rename failed'); }
-    restore();
-  };
-  input.addEventListener('keydown', e=>{
-    if (e.key==='Enter'){ e.preventDefault(); commit(); }
-    else if (e.key==='Escape'){ e.preventDefault(); cancel(); }
-  });
-  input.addEventListener('blur', cancel);
+  }, 'New device name');
 }
 
-// ---- unpair confirmation modal ----
-const backdrop = document.createElement('div');
-backdrop.className = 'modal-backdrop';
-backdrop.innerHTML =
-  `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="unpairTitle">
-     <h3 id="unpairTitle">Unpair device?</h3>
-     <p id="unpairBody"></p>
-     <div class="actions"><button data-act="cancel">Cancel</button><button data-act="confirm" class="danger">Unpair</button></div>
-   </div>`;
-document.body.appendChild(backdrop);
-let unpairTarget = null, unpairBtn = null;
-
-function openUnpair(name, origin){
-  unpairTarget = name; unpairBtn = origin || null;
-  backdrop.querySelector('#unpairTitle').textContent = 'Unpair “'+name+'”?';
-  backdrop.querySelector('#unpairBody').textContent =
-    'It will be removed from the Matter fabric and must be re-paired with its setup code to return.';
-  backdrop.classList.add('open');
-  backdrop.querySelector('[data-act="confirm"]').focus();
-}
-function closeUnpair(returnFocus){
-  if (!backdrop.classList.contains('open')) return;
-  backdrop.classList.remove('open'); unpairTarget = null;
-  if (returnFocus) unpairBtn?.focus();                 // return focus to the invoking kebab
-  unpairBtn = null;
-}
-
-backdrop.addEventListener('click', e=>{
-  if (e.target===backdrop){ closeUnpair(true); return; }        // backdrop click → focus back to kebab
-  const act = e.target.closest('button')?.dataset.act; if(!act) return;
-  if (act==='cancel'){ closeUnpair(true); return; }
-  if (act==='confirm'){ const name = unpairTarget; closeUnpair(); doUnpair(name); }
-});
-// keep focus inside the modal while it is open (simple two-button trap)
-backdrop.addEventListener('keydown', e=>{
-  if (!backdrop.classList.contains('open') || e.key!=='Tab') return;
-  const btns = [...backdrop.querySelectorAll('button')];
-  const first = btns[0], last = btns[btns.length-1];
-  if (e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
-  else if (!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
-});
+const menu = kebabMenu([
+  { label:'✎ Rename', onClick: name => startRename(name) },
+  { label:'⌫ Unpair…', danger:true, onClick: (name, origin) => unpairModal.open(origin, name) },
+]);
 
 async function doUnpair(name){
   try {
@@ -172,9 +87,7 @@ function station(d){
   const rows=el.querySelector('.rows');
   el.querySelector('.kebab').addEventListener('click', ev=>{
     ev.stopPropagation();
-    const btn = ev.currentTarget;
-    if (devMenu.classList.contains('open') && menuBtn===btn){ closeMenu(true); return; }  // same kebab toggles closed
-    openMenu(btn, d.friendly_name);                                                        // else (re)open, retargeted here
+    menu.open(ev.currentTarget, d.friendly_name);
   });
   for (const e of settable) rows.appendChild(control(d.friendly_name,e));
   for (const e of readonly) rows.appendChild(readoutRow(e));

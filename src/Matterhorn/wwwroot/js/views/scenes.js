@@ -1,5 +1,5 @@
 // js/views/scenes.js — scene cards: recall, kebab rename/delete, and the capture-scene modal.
-import { esc, cssId, toast } from '../ui.js';
+import { esc, cssId, toast, kebabMenu, confirmModal, inlineRename } from '../ui.js';
 import { api } from '../api.js';
 import * as store from '../store.js';
 
@@ -39,9 +39,7 @@ function sceneCard(s){
   el.querySelector('[data-act="recall"]').addEventListener('click', ()=>doRecallScene(s.friendly_name));
   el.querySelector('.kebab').addEventListener('click', ev=>{
     ev.stopPropagation();
-    const btn = ev.currentTarget;
-    if (sceneMenu.classList.contains('open') && sceneMenuBtn===btn){ closeSceneMenu(true); return; }
-    openSceneMenu(btn, s.friendly_name);
+    sceneMenu.open(ev.currentTarget, s.friendly_name);
   });
   return el;
 }
@@ -56,59 +54,18 @@ async function doRecallScene(name){
 }
 
 // ---- scene kebab menu (rename / delete) ----
-const sceneMenu = document.createElement('div');
-sceneMenu.className = 'menu';
-sceneMenu.innerHTML = `<button data-act="rename">✎ Rename</button><button data-act="delete" class="danger">⌫ Delete…</button>`;
-document.body.appendChild(sceneMenu);
-let sceneMenuTarget = null, sceneMenuBtn = null;
-
-function openSceneMenu(btn, name){
-  sceneMenuTarget = name;
-  sceneMenuBtn?.setAttribute('aria-expanded','false');
-  sceneMenuBtn = btn; btn.setAttribute('aria-expanded','true');
-  sceneMenu.classList.add('open');
-  const r = btn.getBoundingClientRect();
-  sceneMenu.style.top  = (window.scrollY + r.bottom + 4) + 'px';
-  sceneMenu.style.left = (window.scrollX + r.right - sceneMenu.offsetWidth) + 'px';
-  sceneMenu.querySelector('button').focus();
-}
-function closeSceneMenu(returnFocus){
-  if (!sceneMenu.classList.contains('open')) return;
-  sceneMenu.classList.remove('open'); sceneMenuTarget = null;
-  sceneMenuBtn?.setAttribute('aria-expanded','false');
-  if (returnFocus) sceneMenuBtn?.focus();
-}
-sceneMenu.addEventListener('click', e=>{
-  const act = e.target.closest('button')?.dataset.act; if(!act) return;
-  const name = sceneMenuTarget, origin = sceneMenuBtn; closeSceneMenu();
-  if (act==='rename') startSceneRename(name);
-  else if (act==='delete') openSceneDelete(name, origin);
+const sceneDeleteModal = confirmModal({
+  title: name => `Delete “${name}”?`,
+  body: 'The scene and its snapshot will be removed. Member devices are not affected.',
+  confirmLabel: 'Delete',
+  danger: true,
+  onConfirm: doDeleteScene,
 });
-sceneMenu.addEventListener('keydown', e=>{
-  const items = [...sceneMenu.querySelectorAll('button')];
-  const i = items.indexOf(document.activeElement);
-  if (e.key==='ArrowDown'){ e.preventDefault(); items[(i+1)%items.length].focus(); }
-  else if (e.key==='ArrowUp'){ e.preventDefault(); items[(i-1+items.length)%items.length].focus(); }
-  else if (e.key==='Escape'){ e.preventDefault(); closeSceneMenu(true); }
-});
-document.addEventListener('click', e=>{
-  if (sceneMenu.classList.contains('open') && !sceneMenu.contains(e.target)) closeSceneMenu();
-});
-document.addEventListener('keydown', e=>{ if (e.key==='Escape'){ closeSceneMenu(true); closeSceneDelete(true); closeCapture(true); } });
 
 function startSceneRename(name){
   const el = document.getElementById('scn-'+cssId(name)); if(!el) return;
-  const nameEl = el.querySelector('.name'); if(!nameEl || nameEl.querySelector('input')) return;
-  const input = document.createElement('input');
-  input.className = 'name-edit'; input.value = name; input.setAttribute('aria-label','New scene name');
-  nameEl.replaceChildren(input); input.focus(); input.select();
-  let done = false;
-  const restore = ()=>{ nameEl.textContent = name; };          // SSE 'scenes' will re-render with the real name
-  const cancel  = ()=>{ if(done) return; done = true; restore(); };
-  const commit  = async ()=>{
-    if(done) return; const to = input.value.trim();
-    if(!to || to===name){ done = true; restore(); return; }
-    done = true;
+  const nameEl = el.querySelector('.name'); if(!nameEl) return;
+  inlineRename(nameEl, name, async (to)=>{
     try {
       const r = await api('/api/scenes/'+encodeURIComponent(name)+'/rename', { method:'POST', body:JSON.stringify({to}) });
       if (r.status===409) toast('That name is already taken');
@@ -116,54 +73,15 @@ function startSceneRename(name){
       else if (!r.ok) toast('Rename failed');
       else { toast('Renamed'); load(); }
     } catch(e){ if(e.message!=='401') toast('Rename failed'); }
-    restore();
-  };
-  input.addEventListener('keydown', e=>{
-    if (e.key==='Enter'){ e.preventDefault(); commit(); }
-    else if (e.key==='Escape'){ e.preventDefault(); cancel(); }
-  });
-  input.addEventListener('blur', cancel);
+  }, 'New scene name');
 }
 
-// ---- scene delete confirmation modal ----
-const sceneBackdrop = document.createElement('div');
-sceneBackdrop.className = 'modal-backdrop';
-sceneBackdrop.innerHTML =
-  `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="sceneDeleteTitle">
-     <h3 id="sceneDeleteTitle">Delete scene?</h3>
-     <p id="sceneDeleteBody"></p>
-     <div class="actions"><button data-act="cancel">Cancel</button><button data-act="confirm" class="danger">Delete</button></div>
-   </div>`;
-document.body.appendChild(sceneBackdrop);
-let sceneDeleteTarget = null, sceneDeleteBtn = null;
+const sceneMenu = kebabMenu([
+  { label:'✎ Rename', onClick: name => startSceneRename(name) },
+  { label:'⌫ Delete…', danger:true, onClick: (name, origin) => sceneDeleteModal.open(origin, name) },
+]);
 
-function openSceneDelete(name, origin){
-  sceneDeleteTarget = name; sceneDeleteBtn = origin || null;
-  sceneBackdrop.querySelector('#sceneDeleteTitle').textContent = 'Delete “'+name+'”?';
-  sceneBackdrop.querySelector('#sceneDeleteBody').textContent =
-    'The scene and its snapshot will be removed. Member devices are not affected.';
-  sceneBackdrop.classList.add('open');
-  sceneBackdrop.querySelector('[data-act="confirm"]').focus();
-}
-function closeSceneDelete(returnFocus){
-  if (!sceneBackdrop.classList.contains('open')) return;
-  sceneBackdrop.classList.remove('open'); sceneDeleteTarget = null;
-  if (returnFocus) sceneDeleteBtn?.focus();
-  sceneDeleteBtn = null;
-}
-sceneBackdrop.addEventListener('click', e=>{
-  if (e.target===sceneBackdrop){ closeSceneDelete(true); return; }
-  const act = e.target.closest('button')?.dataset.act; if(!act) return;
-  if (act==='cancel'){ closeSceneDelete(true); return; }
-  if (act==='confirm'){ const name = sceneDeleteTarget; closeSceneDelete(); doDeleteScene(name); }
-});
-sceneBackdrop.addEventListener('keydown', e=>{
-  if (!sceneBackdrop.classList.contains('open') || e.key!=='Tab') return;
-  const btns = [...sceneBackdrop.querySelectorAll('button')];
-  const first = btns[0], last = btns[btns.length-1];
-  if (e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
-  else if (!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
-});
+document.addEventListener('keydown', e=>{ if (e.key==='Escape') closeCapture(true); });
 
 async function doDeleteScene(name){
   try {
