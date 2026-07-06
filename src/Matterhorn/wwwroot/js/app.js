@@ -11,12 +11,14 @@ import * as commission from './commission.js';
 const keyInput = document.getElementById('apikey');
 keyInput.value = getApiKey();
 
+// Devices must precede groups: onFrame populates store.deviceState (via devices.onFrame) before groups.onFrame reads it in applyGroupState
 const modules = [devices, groups, scenes, dock, commission];
 function onFrame(msg){ for (const m of modules) m.onFrame?.(msg); }
 
-keyInput.addEventListener('change',()=>{
+keyInput.addEventListener('change', async ()=>{
   setApiKey(keyInput.value.trim()); reconnect();
-  devices.mount(); groups.mount(); scenes.mount();
+  await devices.mount();  // Populate store.devices before mounting groups/scenes
+  groups.mount(); scenes.mount();
 });
 
 // draw the ridgeline once on load

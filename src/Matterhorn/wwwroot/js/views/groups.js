@@ -226,5 +226,6 @@ export function unmount(){
 
 export function onFrame(msg){
   if (msg.type==='groups'){ load(); }
+  else if (msg.type==='devices'){ load(); }  // Reload groups when devices change (e.g. after commissioning/renaming refreshes "add device" dropdown)
   else if (msg.type==='state'){ applyGroupState(msg.device); }
 }
