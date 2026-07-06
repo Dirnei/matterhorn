@@ -1,24 +1,19 @@
+import { toast, esc, cssId, fmt } from './ui.js';
+import { getApiKey, setApiKey, api, apiKeyQuery } from './api.js';
+import * as store from './store.js';
+import { connectSse, reconnect } from './sse.js';
+
 const grid = document.getElementById('grid');
-const link = document.getElementById('link');
 const keyInput = document.getElementById('apikey');
 const SETTABLE = new Set(['state','brightness','color_temp']);
 const pickers = new Map();   // friendly_name -> { picker, dragging }
 const HSMAX = 254;           // Matter hue/saturation max
 
-let apiKey = localStorage.getItem('mh_key') || '';
-keyInput.value = apiKey;
+keyInput.value = getApiKey();
 
 const defs = new Map();
 const states = new Map();
 
-function headers(extra){ return Object.assign(apiKey?{'X-Api-Key':apiKey}:{}, extra||{}); }
-function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2600); }
-
-async function api(path, opts){
-  const r = await fetch(path, Object.assign({ headers: headers(opts&&opts.body?{'Content-Type':'application/json'}:{}) }, opts));
-  if (r.status===401){ toast('Unauthorized — check the API key'); throw new Error('401'); }
-  return r;
-}
 async function patch(name, body){
   try { await api('/api/devices/'+encodeURIComponent(name), { method:'PATCH', body:JSON.stringify(body) }); }
   catch(e){ if(e.message!=='401') toast('Set failed'); }
@@ -730,20 +725,12 @@ document.getElementById('newGroupForm').addEventListener('submit', async ev=>{
   } catch(e){ if(e.message!=='401') toast('Could not create group'); }
 });
 
-let es;
-function connect(){
-  if (es) es.close();
-  es=new EventSource('/api/events'+(apiKey?'?api_key='+encodeURIComponent(apiKey):''));
-  es.onopen=()=>link.classList.add('live');
-  es.onerror=()=>link.classList.remove('live');
-  es.onmessage=ev=>{
-    let m; try{ m=JSON.parse(ev.data); }catch{ return; }
-    if (m.type==='state'){ states.set(m.device,m.state); applyState(m.device); applyGroupState(m.device); }
-    else if (m.type==='devices'){ loadAll(); }
-    else if (m.type==='groups'){ loadGroups(); }
-    else if (m.type==='scenes'){ loadScenes(); }
-    else if (m.type==='log'){ dockPush(m); commOnLog(m); }
-  };
+function onFrame(m){
+  if (m.type==='state'){ states.set(m.device,m.state); applyState(m.device); applyGroupState(m.device); }
+  else if (m.type==='devices'){ loadAll(); }
+  else if (m.type==='groups'){ loadGroups(); }
+  else if (m.type==='scenes'){ loadScenes(); }
+  else if (m.type==='log'){ dockPush(m); commOnLog(m); }
 }
 
 // ---- commissioning progress modal (spinner + alpine quips while we wait) ----
@@ -803,11 +790,7 @@ document.getElementById('commissionForm').addEventListener('submit',async ev=>{
   try { await api('/api/commission',{method:'POST',body:JSON.stringify({code})}); document.getElementById('code').value=''; }
   catch(e){ closeComm(); if(e.message!=='401') toast('Commission failed'); }
 });
-keyInput.addEventListener('change',()=>{ apiKey=keyInput.value.trim(); localStorage.setItem('mh_key',apiKey); connect(); loadAll(); });
-
-const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const cssId=s=>s.replace(/[^a-z0-9_-]/gi,'_');
-const fmt=v=>typeof v==='boolean'?(v?'yes':'no'):String(v);
+keyInput.addEventListener('change',()=>{ setApiKey(keyInput.value.trim()); reconnect(); loadAll(); });
 
 // draw the ridgeline once on load
 const ridge=document.querySelector('.ridge .draw');
@@ -878,5 +861,5 @@ dockGrip.addEventListener('pointerup',ev=>{
   localStorage.setItem('mh_dock_h',dock.body.offsetHeight);
 });
 
-connect();
+connectSse(onFrame);
 loadAll();
