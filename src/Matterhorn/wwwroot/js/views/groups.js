@@ -5,6 +5,7 @@ import * as store from '../store.js';
 
 let groupsGrid = null, emptyEl = null;
 let mounted = false;
+const expanded = new Set();   // friendly_names whose member-management region is expanded (survives re-render)
 
 // Cache update (store.groups) is unconditional — only the DOM rebuild is guarded on `mounted`.
 async function load(){
@@ -24,19 +25,27 @@ function render(){
 
 function groupCard(g){
   const el=document.createElement('section');
-  el.className='station group'; el.id='grp-'+cssId(g.friendly_name);
+  el.className='group-strip'; el.id='grp-'+cssId(g.friendly_name);
   const members=g.members||[];
+  const isOpen=expanded.has(g.friendly_name);
+  if (isOpen) el.classList.add('open');
   const available=[...store.devices.keys()].filter(n=>!members.includes(n));
   el.innerHTML =
-    `<div class="st-head">
-       <div><div class="name">${esc(g.friendly_name)}</div>
-         <div class="coords">${members.length} member${members.length===1?'':'s'}<span class="pill">group</span></div></div>
-       <div class="st-tools">
+    `<div class="gs-row" role="button" tabindex="0" aria-expanded="${isOpen}">
+       <svg class="gs-glyph" viewBox="0 0 24 24" aria-hidden="true">
+         <circle cx="9" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/>
+         <circle cx="15" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/>
+       </svg>
+       <div class="gs-main">
+         <div class="name">${esc(g.friendly_name)}</div>
+         <div class="gs-sub">${members.length ? members.map(esc).join(' · ') : 'no devices'}</div>
+       </div>
+       <div class="gs-tools">
          <span class="switch"><input type="checkbox" data-prop="state"><span class="slot"></span><span class="knob"></span></span>
          <button class="kebab" aria-label="Group actions" aria-haspopup="true" aria-expanded="false">⋮</button>
        </div>
      </div>
-     <div class="rows">
+     <div class="expand"${isOpen?'':' hidden'}>
        <div class="row chips">${members.length
           ? members.map(m=>`<span class="chip">${esc(m)}<button data-remove="${esc(m)}" aria-label="Remove ${esc(m)}">✕</button></span>`).join('')
           : '<span class="legend">no members</span>'}</div>
@@ -47,10 +56,16 @@ function groupCard(g){
          </select>
        </div>
      </div>`;
+  const row=el.querySelector('.gs-row');
+  const tools=el.querySelector('.gs-tools');
+  tools.addEventListener('click', ev=>ev.stopPropagation());   // switch + kebab never toggle the row
+  row.addEventListener('click', ()=>toggleExpand(g.friendly_name, el, row));
+  row.addEventListener('keydown', ev=>{
+    if (ev.key==='Enter' || ev.key===' '){ ev.preventDefault(); toggleExpand(g.friendly_name, el, row); }
+  });
   el.querySelector('input[type=checkbox]').addEventListener('change',ev=>
     patchGroup(g.friendly_name,{state:ev.target.checked?'ON':'OFF'}));
   el.querySelector('.kebab').addEventListener('click', ev=>{
-    ev.stopPropagation();
     groupMenu.open(ev.currentTarget, g.friendly_name);
   });
   el.querySelectorAll('.chip button').forEach(b=>b.addEventListener('click', async ()=>{
@@ -69,6 +84,16 @@ function groupCard(g){
     } catch(e){ if(e.message!=='401') toast('Add failed'); }
   });
   return el;
+}
+
+// Expanded/collapsed state is kept in module-level `expanded` (not per-DOM-node) so it survives
+// the full-list `render()` rebuild that follows every SSE-driven `load()`.
+function toggleExpand(name, el, row){
+  const nowOpen=!expanded.has(name);
+  if (nowOpen) expanded.add(name); else expanded.delete(name);
+  el.classList.toggle('open', nowOpen);
+  row.setAttribute('aria-expanded', String(nowOpen));
+  el.querySelector('.expand').hidden = !nowOpen;
 }
 
 function patchGroup(name, body){
@@ -132,7 +157,7 @@ export function mount(container){
          <button class="go" type="submit">New group</button>
        </form>
      </div>
-     <div class="groups-grid" id="groupsGrid"></div>
+     <div class="groups-list" id="groupsGrid"></div>
      <div class="empty" id="groupsEmpty" hidden>No groups yet. Create one above.</div>`;
   groupsGrid = container.querySelector('#groupsGrid');
   emptyEl = container.querySelector('#groupsEmpty');
