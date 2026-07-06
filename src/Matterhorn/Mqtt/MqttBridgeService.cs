@@ -21,7 +21,8 @@ public sealed class MqttBridgeService(
     {
         var gateway = await registry.GetAsync<MatterGatewayActor>(ct);
         var groups = await registry.GetAsync<Matterhorn.Groups.GroupsSupervisor>(ct);
-        var targets = new CommandTargets(gateway, groups, Akka.Actor.ActorRefs.Nobody); // Scenes wired in Part B (Task 15)
+        var scenes = await registry.GetAsync<Matterhorn.Scenes.ScenesSupervisor>(ct);
+        var targets = new CommandTargets(gateway, groups, scenes);
 
         client.OnMessageReceived += (_, e) =>
         {

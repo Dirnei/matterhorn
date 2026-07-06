@@ -7,7 +7,7 @@ public record MatterhornConfig(
     string ControllerWsUrl, string ControllerKind,
     string MqttHost, int MqttPort, string? MqttUser, string? MqttPassword,
     string BaseTopic, bool RestEnabled, int RestPort, string? ApiKey, string? ThreadDataset,
-    string NamesFile, string GroupsFile)
+    string NamesFile, string GroupsFile, string ScenesFile)
 {
     public static MatterhornConfig FromConfiguration(IConfiguration c) => new(
         ControllerWsUrl: c["Controller:WsUrl"] ?? "ws://localhost:5580/ws",
@@ -20,5 +20,6 @@ public record MatterhornConfig(
         RestPort: int.TryParse(c["Rest:Port"], out var rp) ? rp : 8090,
         ApiKey: c["Rest:ApiKey"], ThreadDataset: c["Thread:Dataset"],
         NamesFile: c["Storage:NamesFile"] ?? "data/names.json",
-        GroupsFile: c["Storage:GroupsFile"] ?? "data/groups.json");
+        GroupsFile: c["Storage:GroupsFile"] ?? "data/groups.json",
+        ScenesFile: c["Storage:ScenesFile"] ?? "data/scenes.json");
 }

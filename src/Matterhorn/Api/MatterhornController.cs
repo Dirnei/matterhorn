@@ -13,11 +13,12 @@ namespace Matterhorn.Api;
 /// truth; this class is the only place domain ⇄ contract mapping lives.
 /// </summary>
 [ApiController]
-public sealed class MatterhornController(GatewayRef gateway, Matterhorn.Groups.GroupsRef groups) : Gen.MatterhornControllerBase
+public sealed class MatterhornController(GatewayRef gateway, Matterhorn.Groups.GroupsRef groups, Matterhorn.Scenes.ScenesRef scenes) : Gen.MatterhornControllerBase
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
     private IActorRef Gw => gateway.Ref;
     private IActorRef Grp => groups.Ref;
+    private IActorRef Scn => scenes.Ref;
 
     public override async Task<ActionResult<ICollection<Gen.Device>>> ListDevices()
     {
@@ -126,6 +127,54 @@ public sealed class MatterhornController(GatewayRef gateway, Matterhorn.Groups.G
             { Ok: true } => Ok(),
             { Error: "not_found" } => NotFound(),
             { Error: "name_taken" } or { Error: "collides_with_device" } => Conflict(),
+            _ => BadRequest(),
+        };
+    }
+
+    public override async Task<ActionResult<ICollection<Gen.Scene>>> ListScenes()
+    {
+        var views = await Scn.Ask<IReadOnlyList<Matterhorn.Scenes.SceneView>>(new Matterhorn.Scenes.GetScenes(), Timeout);
+        return views.Select(v => new Gen.Scene { Friendly_name = v.FriendlyName, Members = v.Members.ToList() }).ToList();
+    }
+
+    public override async Task<IActionResult> PutScene(string name, Gen.StoreSceneRequest body)
+    {
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, JsonElement>>? explicitState = null;
+        if (body?.State is { Count: > 0 })
+            explicitState = body.State.ToDictionary(
+                kv => kv.Key,
+                kv => (IReadOnlyDictionary<string, JsonElement>)JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(
+                    JsonSerializer.Serialize(kv.Value))!);
+        var devices = body?.Devices?.ToList() ?? new List<string>();
+        var tx = Guid.NewGuid().ToString("N");
+        var r = await Scn.Ask<Matterhorn.Scenes.SceneOpResult>(
+            new Matterhorn.Scenes.StoreScene(name, devices, explicitState, tx), Timeout);
+        return r.Ok ? Created($"/api/scenes/{r.Name}", null) : BadRequest();
+    }
+
+    public override async Task<IActionResult> DeleteScene(string name)
+    {
+        var tx = Guid.NewGuid().ToString("N");
+        var r = await Scn.Ask<Matterhorn.Scenes.SceneOpResult>(new Matterhorn.Scenes.DeleteScene(name, tx), Timeout);
+        return r.Ok ? Accepted() : NotFound();
+    }
+
+    public override async Task<IActionResult> RecallScene(string name)
+    {
+        var tx = Guid.NewGuid().ToString("N");
+        var r = await Scn.Ask<Matterhorn.Scenes.SceneOpResult>(new Matterhorn.Scenes.RecallSceneByName(name, tx), Timeout);
+        return r.Ok ? Accepted() : NotFound();
+    }
+
+    public override async Task<IActionResult> RenameScene(string name, Gen.RenameRequest body)
+    {
+        var tx = Guid.NewGuid().ToString("N");
+        var r = await Scn.Ask<Matterhorn.Scenes.SceneOpResult>(new Matterhorn.Scenes.RenameScene(name, body.To, tx), Timeout);
+        return r switch
+        {
+            { Ok: true } => Ok(),
+            { Error: "not_found" } => NotFound(),
+            { Error: "name_taken" } => Conflict(),
             _ => BadRequest(),
         };
     }

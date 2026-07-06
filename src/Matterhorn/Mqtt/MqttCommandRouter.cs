@@ -55,6 +55,12 @@ public static class MqttCommandRouter
             return;
         }
 
+        if (action.StartsWith("scene/"))
+        {
+            RouteScene(action["scene/".Length..], root, targets.Scenes);
+            return;
+        }
+
         switch (action)
         {
             case "commission":
@@ -92,6 +98,31 @@ public static class MqttCommandRouter
                 groups.Tell(new Groups.AddGroupMember(g, d, Tx()), ActorRefs.NoSender); break;
             case "members/remove" when Str("group") is { } g && Str("device") is { } d:
                 groups.Tell(new Groups.RemoveGroupMember(g, d, Tx()), ActorRefs.NoSender); break;
+        }
+    }
+
+    private static void RouteScene(string sub, JsonElement root, ICanTell scenes)
+    {
+        string Tx() => root.TryGetProperty("transaction", out var t) ? t.GetString() ?? "" : "";
+        string? Str(string p) => root.TryGetProperty(p, out var v) ? v.GetString() : null;
+        switch (sub)
+        {
+            case "store" when Str("name") is { } n:
+                var devices = root.TryGetProperty("devices", out var d) && d.ValueKind == JsonValueKind.Array
+                    ? d.EnumerateArray().Select(e => e.GetString() ?? "").Where(s => s.Length > 0).ToList()
+                    : new List<string>();
+                IReadOnlyDictionary<string, IReadOnlyDictionary<string, JsonElement>>? explicitState = null;
+                if (root.TryGetProperty("state", out var st) && st.ValueKind == JsonValueKind.Object)
+                    explicitState = st.EnumerateObject().ToDictionary(
+                        p => p.Name,
+                        p => (IReadOnlyDictionary<string, JsonElement>)p.Value.EnumerateObject().ToDictionary(x => x.Name, x => x.Value.Clone()));
+                scenes.Tell(new Scenes.StoreScene(n, devices, explicitState, Tx()), ActorRefs.NoSender); break;
+            case "recall" when Str("name") is { } n:
+                scenes.Tell(new Scenes.RecallSceneByName(n, Tx()), ActorRefs.NoSender); break;
+            case "remove" when Str("name") is { } n:
+                scenes.Tell(new Scenes.DeleteScene(n, Tx()), ActorRefs.NoSender); break;
+            case "rename" when Str("from") is { } f && Str("to") is { } t:
+                scenes.Tell(new Scenes.RenameScene(f, t, Tx()), ActorRefs.NoSender); break;
         }
     }
 }

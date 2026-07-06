@@ -105,4 +105,63 @@ public class MqttCommandRouterTests : TestKit
         Assert.Equal("living_room", msg.Group);
         Assert.Equal("lamp", msg.Device);
     }
+
+    [Fact]
+    public void Scene_store_request_forwards_StoreScene()
+    {
+        var targets = Targets(out _, out _, out var scenes);
+        MqttCommandRouter.Route(_topics, "matterhorn/bridge/request/scene/store",
+            """{"name":"movie","devices":["lamp","strip"],"transaction":"t1"}""", targets);
+
+        var msg = scenes.ExpectMsg<Matterhorn.Scenes.StoreScene>();
+        Assert.Equal("movie", msg.Name);
+        Assert.Equal(new[] { "lamp", "strip" }, msg.Devices);
+        Assert.Null(msg.ExplicitState);
+    }
+
+    [Fact]
+    public void Scene_recall_request_forwards_RecallSceneByName()
+    {
+        var targets = Targets(out _, out _, out var scenes);
+        MqttCommandRouter.Route(_topics, "matterhorn/bridge/request/scene/recall",
+            """{"name":"movie","transaction":"t2"}""", targets);
+
+        scenes.ExpectMsg<Matterhorn.Scenes.RecallSceneByName>(m => m.Name == "movie");
+    }
+
+    [Fact]
+    public void Scene_remove_request_forwards_DeleteScene()
+    {
+        var targets = Targets(out _, out _, out var scenes);
+        MqttCommandRouter.Route(_topics, "matterhorn/bridge/request/scene/remove",
+            """{"name":"movie","transaction":"t3"}""", targets);
+
+        scenes.ExpectMsg<Matterhorn.Scenes.DeleteScene>(m => m.Name == "movie");
+    }
+
+    [Fact]
+    public void Scene_rename_request_forwards_RenameScene()
+    {
+        var targets = Targets(out _, out _, out var scenes);
+        MqttCommandRouter.Route(_topics, "matterhorn/bridge/request/scene/rename",
+            """{"from":"movie","to":"film","transaction":"t4"}""", targets);
+
+        var msg = scenes.ExpectMsg<Matterhorn.Scenes.RenameScene>();
+        Assert.Equal("movie", msg.From);
+        Assert.Equal("film", msg.To);
+    }
+
+    [Fact]
+    public void Scene_store_request_with_explicit_state_forwards_it()
+    {
+        var targets = Targets(out _, out _, out var scenes);
+        MqttCommandRouter.Route(_topics, "matterhorn/bridge/request/scene/store",
+            """{"name":"movie","state":{"lamp":{"state":"ON","brightness":50}},"transaction":"t5"}""", targets);
+
+        var msg = scenes.ExpectMsg<Matterhorn.Scenes.StoreScene>();
+        Assert.Equal("movie", msg.Name);
+        Assert.NotNull(msg.ExplicitState);
+        Assert.Equal("ON", msg.ExplicitState!["lamp"]["state"].GetString());
+        Assert.Equal(50, msg.ExplicitState["lamp"]["brightness"].GetInt32());
+    }
 }

@@ -6,6 +6,7 @@ using Matterhorn.Api;
 using Matterhorn.Bridge;
 using Matterhorn.Devices;
 using Matterhorn.Groups;
+using Matterhorn.Scenes;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -395,6 +396,147 @@ public class MatterhornControllerTests : TestKit, IClassFixture<WebApplicationFa
         Assert.Equal(HttpStatusCode.BadRequest, (await task).StatusCode);
     }
 
+    [Fact]
+    public async Task List_scenes_returns_supervisor_list()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithScenes(probe.Ref);
+
+        var task = client.GetAsync("/api/scenes");
+        probe.ExpectMsg<GetScenes>();
+        probe.Reply((IReadOnlyList<SceneView>)new List<SceneView> { new("movie", new List<string> { "lamp" }) });
+
+        var resp = await task;
+        resp.EnsureSuccessStatusCode();
+        var body = await resp.Content.ReadAsStringAsync();
+        Assert.Contains("\"friendly_name\":\"movie\"", body);
+        Assert.Contains("\"members\":[\"lamp\"]", body);
+    }
+
+    [Fact]
+    public async Task PutScene_creates_and_returns_201()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithScenes(probe.Ref);
+
+        var task = client.PutAsJsonAsync("/api/scenes/movie", new Dictionary<string, List<string>> { ["devices"] = new() { "lamp" } });
+
+        var msg = probe.ExpectMsg<StoreScene>();
+        Assert.Equal("movie", msg.Name);
+        Assert.Equal(new[] { "lamp" }, msg.Devices);
+        probe.Reply(new SceneOpResult(true, null, "movie"));
+
+        Assert.Equal(HttpStatusCode.Created, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task PutScene_invalid_name_returns_400()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithScenes(probe.Ref);
+
+        var task = client.PutAsJsonAsync("/api/scenes/!!!", new Dictionary<string, List<string>>());
+        probe.ExpectMsg<StoreScene>();
+        probe.Reply(new SceneOpResult(false, "invalid_name"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_scene_returns_202_when_found()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithScenes(probe.Ref);
+
+        var task = client.DeleteAsync("/api/scenes/movie");
+        var msg = probe.ExpectMsg<DeleteScene>();
+        Assert.Equal("movie", msg.Name);
+        probe.Reply(new SceneOpResult(true, null, "movie"));
+
+        Assert.Equal(HttpStatusCode.Accepted, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_missing_scene_returns_404()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithScenes(probe.Ref);
+
+        var task = client.DeleteAsync("/api/scenes/ghost");
+        probe.ExpectMsg<DeleteScene>();
+        probe.Reply(new SceneOpResult(false, "not_found"));
+
+        Assert.Equal(HttpStatusCode.NotFound, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task RecallScene_returns_202_for_known_scene()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithScenes(probe.Ref);
+
+        var task = client.PostAsync("/api/scenes/movie/recall", null);
+        var msg = probe.ExpectMsg<RecallSceneByName>();
+        Assert.Equal("movie", msg.Name);
+        probe.Reply(new SceneOpResult(true, null, "movie"));
+
+        Assert.Equal(HttpStatusCode.Accepted, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task RecallScene_returns_404_when_missing()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithScenes(probe.Ref);
+
+        var task = client.PostAsync("/api/scenes/ghost/recall", null);
+        probe.ExpectMsg<RecallSceneByName>();
+        probe.Reply(new SceneOpResult(false, "not_found"));
+
+        Assert.Equal(HttpStatusCode.NotFound, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task Rename_scene_returns_200_on_success()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithScenes(probe.Ref);
+
+        var task = client.PostAsJsonAsync("/api/scenes/movie/rename", new Dictionary<string, string> { ["to"] = "film" });
+        var msg = probe.ExpectMsg<RenameScene>();
+        Assert.Equal("movie", msg.From);
+        Assert.Equal("film", msg.To);
+        probe.Reply(new SceneOpResult(true, null, "film"));
+
+        Assert.Equal(HttpStatusCode.OK, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task Rename_missing_scene_returns_404()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithScenes(probe.Ref);
+
+        var task = client.PostAsJsonAsync("/api/scenes/ghost/rename", new Dictionary<string, string> { ["to"] = "film" });
+        probe.ExpectMsg<RenameScene>();
+        probe.Reply(new SceneOpResult(false, "not_found"));
+
+        Assert.Equal(HttpStatusCode.NotFound, (await task).StatusCode);
+    }
+
+    [Fact]
+    public async Task Rename_scene_conflict_returns_409()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithScenes(probe.Ref);
+
+        var task = client.PostAsJsonAsync("/api/scenes/movie/rename", new Dictionary<string, string> { ["to"] = "taken" });
+        probe.ExpectMsg<RenameScene>();
+        probe.Reply(new SceneOpResult(false, "name_taken"));
+
+        Assert.Equal(HttpStatusCode.Conflict, (await task).StatusCode);
+    }
+
     private HttpClient ClientWithGateway(IActorRef gateway)
     {
         var client = _factory.WithWebHostBuilder(b =>
@@ -413,6 +555,18 @@ public class MatterhornControllerTests : TestKit, IClassFixture<WebApplicationFa
             b.ConfigureServices(s =>
             {
                 s.AddSingleton(new GroupsRef(groups));
+                s.AddSingleton<IConfigureApiKey>(new StaticApiKey("secret"));
+            })).CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", "secret");
+        return client;
+    }
+
+    private HttpClient ClientWithScenes(IActorRef scenes)
+    {
+        var client = _factory.WithWebHostBuilder(b =>
+            b.ConfigureServices(s =>
+            {
+                s.AddSingleton(new ScenesRef(scenes));
                 s.AddSingleton<IConfigureApiKey>(new StaticApiKey("secret"));
             })).CreateClient();
         client.DefaultRequestHeaders.Add("X-Api-Key", "secret");

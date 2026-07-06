@@ -235,6 +235,89 @@ paths:
         '409':
           description: Target name taken.
 
+  /api/scenes:
+    get:
+      operationId: listScenes
+      summary: List all scenes.
+      tags: [scenes]
+      responses:
+        '200':
+          description: Every scene and its member friendly names.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Scene'
+
+  /api/scenes/{name}:
+    put:
+      operationId: putScene
+      summary: Store (create-or-replace) a scene — snapshot members or use explicit state.
+      tags: [scenes]
+      parameters:
+        - $ref: '#/components/parameters/FriendlyName'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreSceneRequest'
+      responses:
+        '200':
+          description: Replaced.
+        '201':
+          description: Created.
+        '400':
+          description: Not usable.
+    delete:
+      operationId: deleteScene
+      summary: Delete a scene.
+      tags: [scenes]
+      parameters:
+        - $ref: '#/components/parameters/FriendlyName'
+      responses:
+        '202':
+          description: Deleted.
+        '404':
+          description: No scene with that name.
+
+  /api/scenes/{name}/recall:
+    post:
+      operationId: recallScene
+      summary: Recall a scene (fan out its stored values).
+      tags: [scenes]
+      parameters:
+        - $ref: '#/components/parameters/FriendlyName'
+      responses:
+        '202':
+          description: Accepted; applied asynchronously.
+        '404':
+          description: No scene with that name.
+
+  /api/scenes/{name}/rename:
+    post:
+      operationId: renameScene
+      summary: Rename a scene.
+      tags: [scenes]
+      parameters:
+        - $ref: '#/components/parameters/FriendlyName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameRequest'
+      responses:
+        '200':
+          description: Renamed.
+        '400':
+          description: Not usable.
+        '404':
+          description: No scene with that name.
+        '409':
+          description: Target name taken.
+
   /api/bridge/info:
     get:
       operationId: getBridgeInfo
@@ -354,3 +437,19 @@ components:
       type: object
       properties:
         members: { type: array, items: { type: string }, description: 'Initial member friendly names.' }
+
+    Scene:
+      type: object
+      required: [friendly_name, members]
+      properties:
+        friendly_name: { type: string }
+        members: { type: array, items: { type: string } }
+
+    StoreSceneRequest:
+      type: object
+      properties:
+        devices: { type: array, items: { type: string }, description: 'Members to snapshot (ignored when state is present).' }
+        state:
+          type: object
+          additionalProperties: { type: object, additionalProperties: true }
+          description: 'Explicit per-device property map; when present, stored verbatim instead of snapshotting.'

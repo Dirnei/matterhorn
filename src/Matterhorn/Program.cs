@@ -11,6 +11,7 @@ using Matterhorn.Groups;
 using Matterhorn.Matter;
 using Matterhorn.Mqtt;
 using Matterhorn.Persistence;
+using Matterhorn.Scenes;
 
 var builder = WebApplication.CreateBuilder(args);
 var cfg = MatterhornConfig.FromConfiguration(builder.Configuration);
@@ -35,6 +36,7 @@ builder.Services.AddSingleton(mqttClient);
 builder.Services.AddSingleton(controller);
 builder.Services.AddSingleton<INameStore>(new JsonNameStore(cfg.NamesFile));
 builder.Services.AddSingleton<IGroupStore>(new JsonGroupStore(cfg.GroupsFile));
+builder.Services.AddSingleton<ISceneStore>(new JsonSceneStore(cfg.ScenesFile));
 builder.Services.AddSingleton<IMqttPublisher, HiveMqttPublisher>();
 builder.Services.AddSingleton<IConfigureApiKey>(new StaticApiKey(cfg.ApiKey));
 
@@ -58,11 +60,17 @@ builder.Services.AddAkka("matterhorn", (b, sp) => b
             sp.GetRequiredService<IGroupStore>(), gw, publisher, topics), "groups");
         registry.Register<GroupsSupervisor>(groups);
         gw.Tell(new RegisterGroups(groups));
+        var scenes = system.ActorOf(ScenesSupervisor.Props(
+            sp.GetRequiredService<ISceneStore>(), gw, publisher, topics), "scenes");
+        registry.Register<ScenesSupervisor>(scenes);
+        gw.Tell(new RegisterScenes(scenes));
     }));
 builder.Services.AddSingleton(sp =>
     new GatewayRef(sp.GetRequiredService<ActorRegistry>().Get<MatterGatewayActor>()));
 builder.Services.AddSingleton(sp =>
     new GroupsRef(sp.GetRequiredService<ActorRegistry>().Get<GroupsSupervisor>()));
+builder.Services.AddSingleton(sp =>
+    new ScenesRef(sp.GetRequiredService<ActorRegistry>().Get<ScenesSupervisor>()));
 
 // Owns broker connect/subscribe and routes inbound MQTT commands to the gateway.
 builder.Services.AddHostedService<MqttBridgeService>();
