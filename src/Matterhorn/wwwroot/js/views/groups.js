@@ -1,5 +1,5 @@
 // js/views/groups.js — group cards: master switch, member add/remove, kebab rename/delete, create form.
-import { esc, cssId, toast, kebabMenu, confirmModal, inlineRename, createPickerModal } from '../ui.js';
+import { esc, cssId, toast, kebabMenu, confirmModal, inlineRename, createPickerModal, icon } from '../ui.js';
 import { api } from '../api.js';
 import * as store from '../store.js';
 
@@ -42,12 +42,15 @@ function groupCard(g){
        </div>
        <div class="gs-tools">
          <span class="switch"><input type="checkbox" data-prop="state"><span class="slot"></span><span class="knob"></span></span>
-         <button class="kebab" aria-label="Group actions" aria-haspopup="true" aria-expanded="false">⋮</button>
+         <button class="kebab" aria-label="Group actions" aria-haspopup="true" aria-expanded="false">${icon.kebab}</button>
        </div>
+       <span class="gs-chevron" aria-hidden="true">
+         <svg viewBox="0 0 24 24" width="14" height="14"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+       </span>
      </div>
      <div class="expand"${isOpen?'':' hidden'}>
        <div class="row chips">${members.length
-          ? members.map(m=>`<span class="chip">${esc(m)}<button data-remove="${esc(m)}" aria-label="Remove ${esc(m)}">✕</button></span>`).join('')
+          ? members.map(m=>`<span class="chip">${esc(m)}<button data-remove="${esc(m)}" aria-label="Remove ${esc(m)}">${icon.close}</button></span>`).join('')
           : '<span class="legend">no members</span>'}</div>
        <div class="row add-member">
          <select aria-label="Add device to group">
@@ -138,8 +141,8 @@ function startGroupRename(name){
 }
 
 const groupMenu = kebabMenu([
-  { label:'✎ Rename', onClick: name => startGroupRename(name) },
-  { label:'⌫ Delete…', danger:true, onClick: (name, origin) => groupDeleteModal.open(origin, name) },
+  { label:'Rename', icon: icon.rename, onClick: name => startGroupRename(name) },
+  { label:'Delete…', icon: icon.trash, danger:true, onClick: (name, origin) => groupDeleteModal.open(origin, name) },
 ]);
 
 // ---- new-group picker (name + searchable device checklist, defaults to controllable devices) ----

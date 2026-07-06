@@ -1,5 +1,5 @@
 // js/views/devices.js — device stations grid: render, controls, color wheel, menu/rename/unpair.
-import { esc, cssId, fmt, toast, kebabMenu, confirmModal, inlineRename } from '../ui.js';
+import { esc, cssId, fmt, toast, kebabMenu, confirmModal, inlineRename, icon } from '../ui.js';
 import { api } from '../api.js';
 import * as store from '../store.js';
 
@@ -38,8 +38,8 @@ function startRename(name){
 }
 
 const menu = kebabMenu([
-  { label:'✎ Rename', onClick: name => startRename(name) },
-  { label:'⌫ Unpair…', danger:true, onClick: (name, origin) => unpairModal.open(origin, name) },
+  { label:'Rename', icon: icon.rename, onClick: name => startRename(name) },
+  { label:'Unpair…', icon: icon.trash, danger:true, onClick: (name, origin) => unpairModal.open(origin, name) },
 ]);
 
 async function doUnpair(name){
@@ -85,7 +85,7 @@ function station(d){
          <div class="coords">${esc(d.device_type)} · node ${esc(d.node_id)} / ep ${d.endpoint}${d.transport?`<span class="pill">${esc(d.transport)}</span>`:''}</div></div>
        <div class="st-tools">
          <span class="bench ${d.reachable?'up':''}" title="${d.reachable?'reachable':'unreachable'}"></span>
-         <button class="kebab" aria-label="Device actions" aria-haspopup="true" aria-expanded="false">⋮</button>
+         <button class="kebab" aria-label="Device actions" aria-haspopup="true" aria-expanded="false">${icon.kebab}</button>
        </div>
      </div><div class="rows"></div>`;
   const rows=el.querySelector('.rows');

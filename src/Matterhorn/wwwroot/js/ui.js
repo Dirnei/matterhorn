@@ -7,6 +7,15 @@ export const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
 export const cssId=s=>s.replace(/[^a-z0-9_-]/gi,'_');
 export const fmt=v=>typeof v==='boolean'?(v?'yes':'no'):String(v);
 
+// ---- inline icon glyphs — a small, cohesive SVG language (currentColor, ~14-16px, 1.6 stroke)
+// that replaces the ad-hoc text glyphs (kebab dots, pencil, delete) previously used for row actions.
+export const icon = {
+  kebab: '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="5" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="19" r="1.7" fill="currentColor"/></svg>',
+  rename: '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M4 20l.8-3.9L16.2 4.7a1.5 1.5 0 0 1 2.1 0l1 1a1.5 1.5 0 0 1 0 2.1L7.9 19.2 4 20Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/><path d="M14.3 6.6l3.1 3.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 7h14M9.5 7V5.2a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V7M10 11v6M14 11v6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 7l1 12.2a1 1 0 0 0 1 .8h7a1 1 0 0 0 1-.8L17.5 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
+  close: '<svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+};
+
 // ---- kebab menu: one body-level dropdown per view, retargeted to whichever row's kebab was
 // clicked (the card clips overflow, so the menu can't live inside the card). `open(anchorBtn, subject)`
 // stores `subject` (e.g. the device/group/scene name) and hands it back to the clicked item's
@@ -15,7 +24,7 @@ export function kebabMenu(items){
   const menu = document.createElement('div');
   menu.className = 'menu';
   menu.innerHTML = items.map((it,i)=>
-    `<button data-i="${i}"${it.danger?' class="danger"':''}>${it.label}</button>`).join('');
+    `<button data-i="${i}"${it.danger?' class="danger"':''}>${it.icon||''}<span>${it.label}</span></button>`).join('');
   document.body.appendChild(menu);
   let anchor = null, subject = null;
 
@@ -188,7 +197,7 @@ export function createPickerModal(opts){
     });
     updateCount();
   }
-  function updateCount(){ countEl.textContent = `${selected.size} selected`; }
+  function updateCount(){ countEl.innerHTML = `<b>${selected.size}</b> selected`; }
 
   searchEl.addEventListener('input', renderList);
   segBtns.forEach(b=>b.addEventListener('click', ()=>{ setSeg(b.dataset.seg==='controllable'); renderList(); }));

@@ -1,5 +1,5 @@
 // js/views/scenes.js — scene cards: recall, kebab rename/delete, and the capture-scene modal.
-import { esc, cssId, toast, kebabMenu, confirmModal, inlineRename, createPickerModal } from '../ui.js';
+import { esc, cssId, toast, kebabMenu, confirmModal, inlineRename, createPickerModal, icon } from '../ui.js';
 import { api } from '../api.js';
 import * as store from '../store.js';
 
@@ -31,7 +31,7 @@ function sceneCard(s){
          <div class="coords">${members.length} member${members.length===1?'':'s'}<span class="pill">scene</span></div></div>
        <div class="st-tools">
          <button class="go" data-act="recall">Recall</button>
-         <button class="kebab" aria-label="Scene actions" aria-haspopup="true" aria-expanded="false">⋮</button>
+         <button class="kebab" aria-label="Scene actions" aria-haspopup="true" aria-expanded="false">${icon.kebab}</button>
        </div>
      </div>
      <div class="rows">
@@ -80,8 +80,8 @@ function startSceneRename(name){
 }
 
 const sceneMenu = kebabMenu([
-  { label:'✎ Rename', onClick: name => startSceneRename(name) },
-  { label:'⌫ Delete…', danger:true, onClick: (name, origin) => sceneDeleteModal.open(origin, name) },
+  { label:'Rename', icon: icon.rename, onClick: name => startSceneRename(name) },
+  { label:'Delete…', icon: icon.trash, danger:true, onClick: (name, origin) => sceneDeleteModal.open(origin, name) },
 ]);
 
 async function doDeleteScene(name){
