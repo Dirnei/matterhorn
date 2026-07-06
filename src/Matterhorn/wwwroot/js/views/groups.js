@@ -193,6 +193,7 @@ export function mount(container){
 export function unmount(){
   mounted = false;
   groupMenu.close();     // drop this view's open kebab dropdown, if any
+  groupDeleteModal.close(); // drop the delete confirm modal, if any
   groupsGrid = null; emptyEl = null;
 }
 

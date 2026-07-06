@@ -132,6 +132,7 @@ export function mount(container){
 export function unmount(){
   mounted = false;
   sceneMenu.close();     // drop this view's open kebab dropdown, if any
+  sceneDeleteModal.close(); // drop the delete confirm modal, if any
   scenesGrid = null; emptyEl = null;
 }
 

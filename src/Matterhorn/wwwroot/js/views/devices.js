@@ -82,7 +82,7 @@ function station(d){
   el.innerHTML =
     `<div class="st-head">
        <div><div class="name">${esc(d.friendly_name)}</div>
-         <div class="coords">${esc(d.device_type)} · node ${esc(d.node_id)} / ep ${d.endpoint}${d.transport?`<span class="pill">${esc(d.transport)}</span>`:''}</div></div>
+         <div class="coords">${esc(d.device_type)} · node ${esc(d.node_id)} / ep ${esc(d.endpoint)}${d.transport?`<span class="pill">${esc(d.transport)}</span>`:''}</div></div>
        <div class="st-tools">
          <span class="bench ${d.reachable?'up':''}" title="${d.reachable?'reachable':'unreachable'}"></span>
          <button class="kebab" aria-label="Device actions" aria-haspopup="true" aria-expanded="false">${icon.kebab}</button>
@@ -210,6 +210,7 @@ export function mount(container){
 export function unmount(){
   mounted = false;
   menu.close();          // drop this view's open kebab dropdown, if any
+  unpairModal.close();   // drop the unpair confirm modal, if any
   grid = null; emptyEl = null; pickers.clear();
 }
 

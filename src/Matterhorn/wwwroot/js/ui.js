@@ -113,7 +113,7 @@ export function confirmModal({ title, body, confirmLabel='Confirm', danger=false
   });
   document.addEventListener('keydown', e=>{ if (e.key==='Escape') close(true); });
 
-  return { open };
+  return { open, close };
 }
 
 // ---- picker modal: shared searchable device picker used to create groups and (next) capture
@@ -176,7 +176,7 @@ export function createPickerModal(opts){
   }
 
   function renderList(){
-    const all = [...store.devices.values()];
+    const all = [...store.devices.values()].sort((a,b)=>a.friendly_name.localeCompare(b.friendly_name));
     const list = store.filterDevices(all, searchEl.value, controllableOnly);
     listEl.innerHTML = list.length ? list.map(d=>{
       const itemId = 'picker-item-' + cssId(d.friendly_name) + '-' + pickerModalSeq;
