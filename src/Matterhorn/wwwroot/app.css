@@ -55,7 +55,16 @@
   form.commission { display:flex; gap:8px; }
   form.commission input { width:min(32vw,208px); }
 
-  main { max-width:1180px; margin:0 auto; padding:24px; display:grid; gap:16px; grid-template-columns:repeat(auto-fill,minmax(288px,1fr)); }
+  main { max-width:1180px; margin:0 auto; padding:24px; }
+  .grid { display:grid; gap:16px; grid-template-columns:repeat(auto-fill,minmax(288px,1fr)); }
+
+  /* Tab bar — sits between the header and the routed view */
+  .tabs { display:flex; gap:4px; max-width:1180px; margin:0 auto; padding:0 24px; background:var(--surface); border-bottom:1px solid var(--line); }
+  .tabs a { display:inline-block; padding:12px 14px 10px; font-family:var(--mono); font-size:11.5px; font-weight:600;
+            letter-spacing:.08em; text-transform:uppercase; color:var(--muted); text-decoration:none;
+            border-bottom:2px solid transparent; transition:color .15s, border-color .15s; }
+  .tabs a:hover { color:var(--ink); }
+  .tabs a.active { color:var(--enzian); border-bottom-color:var(--enzian); }
   .station { position:relative; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:0 16px 16px; overflow:hidden; }
   .station::before { content:""; position:absolute; inset:0 0 auto 0; height:3px; background:linear-gradient(90deg,var(--enzian),var(--enzian-bright)); }
   .st-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:16px 0 12px; border-bottom:1px solid var(--line); }
@@ -170,8 +179,7 @@
   .modal.comm.done .spinner { display:none; }
   @keyframes spin { to { transform:rotate(360deg); } }
 
-  /* Groups section */
-  #groupsSection { max-width:1180px; margin:0 auto; padding:24px 24px 0; }
+  /* Groups view */
   .section-head { display:flex; align-items:center; justify-content:space-between; gap:16px 28px; flex-wrap:wrap; margin-bottom:14px; }
   .section-head .legend { font-size:13px; }
   form.newgroup { display:flex; gap:8px; }
@@ -185,8 +193,7 @@
   .chip button:hover { color:var(--alpenglow); }
   .add-member select { flex:1; }
 
-  /* Scenes section */
-  #scenesSection { max-width:1180px; margin:0 auto; padding:24px 24px 0; }
+  /* Scenes view */
   .scenes-grid { display:grid; gap:16px; grid-template-columns:repeat(auto-fill,minmax(288px,1fr)); }
   .station.scene::before { background:linear-gradient(90deg,var(--alpenglow),var(--bav)); }
   .capture-members { max-height:220px; overflow-y:auto; margin:10px 0 18px; padding:8px 10px;

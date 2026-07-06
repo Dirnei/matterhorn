@@ -31,29 +31,13 @@
   </div>
 </header>
 
-<section id="groupsSection">
-  <div class="section-head">
-    <span class="legend">Groups</span>
-    <form class="newgroup" id="newGroupForm">
-      <input id="newGroupName" placeholder="group name" autocomplete="off" />
-      <button class="go" type="submit">New group</button>
-    </form>
-  </div>
-  <div class="groups-grid" id="groupsGrid"></div>
-  <div class="empty" id="groupsEmpty" hidden>No groups yet. Create one above.</div>
-</section>
-
-<section id="scenesSection">
-  <div class="section-head">
-    <span class="legend">Scenes</span>
-    <button class="go" type="button" id="captureSceneBtn">Capture scene</button>
-  </div>
-  <div class="scenes-grid" id="scenesGrid"></div>
-  <div class="empty" id="scenesEmpty" hidden>No scenes yet. Capture one above.</div>
-</section>
-
-<main id="grid"></main>
-<div class="empty" id="empty" hidden>No stations on the fabric. Commission a device to begin.</div>
+<nav class="tabs" id="tabs">
+  <a href="#/devices" data-tab="devices">Devices</a>
+  <a href="#/groups" data-tab="groups">Groups</a>
+  <a href="#/scenes" data-tab="scenes">Scenes</a>
+</nav>
+<main id="view"></main>
+<div id="modal-root"></div>
 
 <svg class="contour" viewBox="0 0 200 200" fill="none" aria-hidden="true">
   <g stroke="currentColor" stroke-width="1.4">

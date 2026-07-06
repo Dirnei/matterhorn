@@ -3,18 +3,21 @@ import { esc, cssId, toast, kebabMenu, confirmModal, inlineRename } from '../ui.
 import { api } from '../api.js';
 import * as store from '../store.js';
 
-let scenesGrid = null;
+let scenesGrid = null, emptyEl = null;
+let mounted = false;
 
+// Cache update (store.scenes) is unconditional — only the DOM rebuild is guarded on `mounted`.
 async function load(){
   let list; try { list = await (await api('/api/scenes')).json(); } catch(e){ return; }
   store.scenes.clear(); list.forEach(s=>store.scenes.set(s.friendly_name,s));
-  render();
+  if (mounted) render();
 }
 
 function render(){
+  if (!mounted) return;
   scenesGrid.innerHTML='';
   const list=[...store.scenes.values()].sort((a,b)=>a.friendly_name.localeCompare(b.friendly_name));
-  document.getElementById('scenesEmpty').hidden = list.length>0;
+  emptyEl.hidden = list.length>0;
   for (const s of list) scenesGrid.appendChild(sceneCard(s));
 }
 
@@ -142,17 +145,30 @@ document.getElementById('captureForm').addEventListener('submit', async ev=>{
     else { toast('Scene captured'); closeCapture(); load(); }
   } catch(e){ if(e.message!=='401') toast('Could not capture scene'); }
 });
-document.getElementById('captureSceneBtn').addEventListener('click', openCapture);
 
 export function mount(container){
-  scenesGrid = container || document.getElementById('scenesGrid');
+  container.innerHTML =
+    `<div class="section-head">
+       <span class="legend">Scenes</span>
+       <button class="go" type="button" id="captureSceneBtn">Capture scene</button>
+     </div>
+     <div class="scenes-grid" id="scenesGrid"></div>
+     <div class="empty" id="scenesEmpty" hidden>No scenes yet. Capture one above.</div>`;
+  scenesGrid = container.querySelector('#scenesGrid');
+  emptyEl = container.querySelector('#scenesEmpty');
+  container.querySelector('#captureSceneBtn').addEventListener('click', openCapture);
+  mounted = true;
   return load();
 }
 
 export function unmount(){
-  scenesGrid = null;
+  mounted = false;
+  sceneMenu.close();     // drop this view's open kebab dropdown, if any
+  closeCapture(false);   // and its capture-scene modal, if open
+  scenesGrid = null; emptyEl = null;
 }
 
 export function onFrame(msg){
-  if (msg.type==='scenes'){ load(); }
+  // Cache update (store.scenes) is unconditional; render() (called from load) guards DOM writes on `mounted`.
+  if (msg.type==='scenes'){ return load(); }
 }

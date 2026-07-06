@@ -3,18 +3,21 @@ import { esc, cssId, toast, kebabMenu, confirmModal, inlineRename } from '../ui.
 import { api } from '../api.js';
 import * as store from '../store.js';
 
-let groupsGrid = null;
+let groupsGrid = null, emptyEl = null;
+let mounted = false;
 
+// Cache update (store.groups) is unconditional — only the DOM rebuild is guarded on `mounted`.
 async function load(){
   let list; try { list = await (await api('/api/groups')).json(); } catch(e){ return; }
   store.groups.clear(); list.forEach(g=>store.groups.set(g.friendly_name,g));
-  render();
+  if (mounted) render();
 }
 
 function render(){
+  if (!mounted) return;
   groupsGrid.innerHTML='';
   const list=[...store.groups.values()].sort((a,b)=>a.friendly_name.localeCompare(b.friendly_name));
-  document.getElementById('groupsEmpty').hidden = list.length>0;
+  emptyEl.hidden = list.length>0;
   for (const g of list) groupsGrid.appendChild(groupCard(g));
   list.forEach(g=>applyGroupState(g.friendly_name));
 }
@@ -75,6 +78,7 @@ function patchGroup(name, body){
 
 // Group state echoes arrive on the same SSE 'state' frame as devices (device === group name).
 function applyGroupState(name){
+  if (!mounted) return;
   if (!store.groups.has(name)) return;
   const el=document.getElementById('grp-'+cssId(name)); if(!el) return;
   const s=store.deviceState.get(name)||{};
@@ -119,29 +123,43 @@ async function doDeleteGroup(name){
   } catch(e){ if(e.message!=='401') toast('Delete failed'); }
 }
 
-document.getElementById('newGroupForm').addEventListener('submit', async ev=>{
-  ev.preventDefault();
-  const input=document.getElementById('newGroupName');
-  const name=input.value.trim(); if(!name) return;
-  try {
-    const r = await api('/api/groups/'+encodeURIComponent(name), { method:'PUT', body:JSON.stringify({members:[]}) });
-    if (r.status===409) toast('That name is already taken');
-    else if (!r.ok) toast('Could not create group');
-    else { toast('Group created'); input.value=''; load(); }
-  } catch(e){ if(e.message!=='401') toast('Could not create group'); }
-});
-
 export function mount(container){
-  groupsGrid = container || document.getElementById('groupsGrid');
+  container.innerHTML =
+    `<div class="section-head">
+       <span class="legend">Groups</span>
+       <form class="newgroup" id="newGroupForm">
+         <input id="newGroupName" placeholder="group name" autocomplete="off" />
+         <button class="go" type="submit">New group</button>
+       </form>
+     </div>
+     <div class="groups-grid" id="groupsGrid"></div>
+     <div class="empty" id="groupsEmpty" hidden>No groups yet. Create one above.</div>`;
+  groupsGrid = container.querySelector('#groupsGrid');
+  emptyEl = container.querySelector('#groupsEmpty');
+  container.querySelector('#newGroupForm').addEventListener('submit', async ev=>{
+    ev.preventDefault();
+    const input=container.querySelector('#newGroupName');
+    const name=input.value.trim(); if(!name) return;
+    try {
+      const r = await api('/api/groups/'+encodeURIComponent(name), { method:'PUT', body:JSON.stringify({members:[]}) });
+      if (r.status===409) toast('That name is already taken');
+      else if (!r.ok) toast('Could not create group');
+      else { toast('Group created'); input.value=''; load(); }
+    } catch(e){ if(e.message!=='401') toast('Could not create group'); }
+  });
+  mounted = true;
   return load();
 }
 
 export function unmount(){
-  groupsGrid = null;
+  mounted = false;
+  groupMenu.close();     // drop this view's open kebab dropdown, if any
+  groupsGrid = null; emptyEl = null;
 }
 
 export function onFrame(msg){
-  if (msg.type==='groups'){ load(); }
-  else if (msg.type==='devices'){ load(); }  // Reload groups when devices change (e.g. after commissioning/renaming refreshes "add device" dropdown)
+  // Cache update (store.groups) is unconditional; applyGroupState guards its own DOM writes on `mounted`.
+  if (msg.type==='groups'){ return load(); }
+  else if (msg.type==='devices'){ return load(); }  // Reload groups when devices change (e.g. after commissioning/renaming refreshes "add device" dropdown)
   else if (msg.type==='state'){ applyGroupState(msg.device); }
 }

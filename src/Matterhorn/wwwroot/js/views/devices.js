@@ -3,7 +3,8 @@ import { esc, cssId, fmt, toast, kebabMenu, confirmModal, inlineRename } from '.
 import { api } from '../api.js';
 import * as store from '../store.js';
 
-let grid = null;
+let grid = null, emptyEl = null;
+let mounted = false;
 const SETTABLE = new Set(['state','brightness','color_temp']);
 const pickers = new Map();   // friendly_name -> { picker, dragging }
 const HSMAX = 254;           // Matter hue/saturation max
@@ -50,6 +51,8 @@ async function doUnpair(name){
   } catch(e){ if(e.message!=='401') toast('Unpair failed'); }
 }
 
+// Cache update is unconditional (keeps store.devices/deviceState warm for other views' onFrame
+// reads, e.g. groups' member picker) — only the DOM rebuild below is guarded on `mounted`.
 async function load(){
   let list; try { list = await (await api('/api/devices')).json(); } catch(e){ return; }
   store.devices.clear(); list.forEach(d=>store.devices.set(d.friendly_name,d));
@@ -57,13 +60,14 @@ async function load(){
     try { store.deviceState.set(d.friendly_name, await (await api('/api/devices/'+encodeURIComponent(d.friendly_name))).json()); }
     catch { store.deviceState.set(d.friendly_name,{}); }
   }));
-  render();
+  if (mounted) render();
 }
 
 function render(){
+  if (!mounted) return;
   grid.innerHTML=''; pickers.clear();   // grid is rebuilt from scratch; discard stale picker instances
   const list=[...store.devices.values()].sort((a,b)=>a.friendly_name.localeCompare(b.friendly_name));
-  document.getElementById('empty').hidden = list.length>0;
+  emptyEl.hidden = list.length>0;
   for (const d of list) grid.appendChild(station(d));
   list.forEach(d=>applyState(d.friendly_name));
 }
@@ -163,6 +167,7 @@ function readoutRow(e){
 }
 
 function applyState(name){
+  if (!mounted) return;
   const el=document.getElementById('dev-'+cssId(name)); if(!el) return;
   const s=store.deviceState.get(name)||{};
   for (const [prop,val] of Object.entries(s)){
@@ -193,15 +198,23 @@ function applyState(name){
 }
 
 export function mount(container){
-  grid = container || document.getElementById('grid');
+  container.innerHTML =
+    `<div class="grid" id="grid"></div>
+     <div class="empty" id="empty" hidden>No stations on the fabric. Commission a device to begin.</div>`;
+  grid = container.querySelector('#grid');
+  emptyEl = container.querySelector('#empty');
+  mounted = true;
   return load();
 }
 
 export function unmount(){
-  grid = null;
+  mounted = false;
+  menu.close();          // drop this view's open kebab dropdown, if any
+  grid = null; emptyEl = null; pickers.clear();
 }
 
 export function onFrame(msg){
+  // Cache update (store.deviceState) is unconditional; applyState guards its own DOM writes on `mounted`.
   if (msg.type==='state'){ store.deviceState.set(msg.device, msg.state); applyState(msg.device); }
-  else if (msg.type==='devices'){ load(); }
+  else if (msg.type==='devices'){ return load(); }
 }
