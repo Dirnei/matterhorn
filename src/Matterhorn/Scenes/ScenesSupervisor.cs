@@ -91,10 +91,7 @@ public sealed class ScenesSupervisor : ReceiveActor
             foreach (var (key, task) in tasks)
             {
                 if (!task.IsCompletedSuccessfully || task.Result is not { Found: true, State: { } state }) continue;
-                var props = new Dictionary<string, JsonElement>();
-                foreach (var (k, v) in state)
-                    if (Settable.Contains(k)) props[k] = JsonSerializer.SerializeToElement(v);
-                values[key] = props;
+                values[key] = SceneSnapshot.Project(state);
             }
             return new SnapshotCaptured(slug, req.Transaction, values, replyTo);
         }).PipeTo(Self);
