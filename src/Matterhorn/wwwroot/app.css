@@ -233,8 +233,3 @@
   /* Scenes view */
   .scenes-grid { display:grid; gap:16px; grid-template-columns:repeat(auto-fill,minmax(288px,1fr)); }
   .station.scene::before { background:linear-gradient(90deg,var(--alpenglow),var(--bav)); }
-  .capture-members { max-height:220px; overflow-y:auto; margin:10px 0 18px; padding:8px 10px;
-                      border:1px solid var(--line); border-radius:8px; background:var(--surface2); }
-  .capture-members label { display:flex; align-items:center; gap:8px; padding:4px 2px; font-family:var(--mono); font-size:12.5px; }
-  .capture-members input[type=checkbox] { margin:0; }
-  #captureForm #captureName { width:100%; margin-top:2px; }

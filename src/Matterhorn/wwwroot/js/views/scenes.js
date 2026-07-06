@@ -1,5 +1,5 @@
 // js/views/scenes.js — scene cards: recall, kebab rename/delete, and the capture-scene modal.
-import { esc, cssId, toast, kebabMenu, confirmModal, inlineRename } from '../ui.js';
+import { esc, cssId, toast, kebabMenu, confirmModal, inlineRename, createPickerModal } from '../ui.js';
 import { api } from '../api.js';
 import * as store from '../store.js';
 
@@ -84,8 +84,6 @@ const sceneMenu = kebabMenu([
   { label:'⌫ Delete…', danger:true, onClick: (name, origin) => sceneDeleteModal.open(origin, name) },
 ]);
 
-document.addEventListener('keydown', e=>{ if (e.key==='Escape') closeCapture(true); });
-
 async function doDeleteScene(name){
   try {
     const r = await api('/api/scenes/'+encodeURIComponent(name), { method:'DELETE' });
@@ -95,56 +93,24 @@ async function doDeleteScene(name){
   } catch(e){ if(e.message!=='401') toast('Delete failed'); }
 }
 
-// ---- capture-scene modal (name + device multi-select, default all checked) ----
-const captureBackdrop = document.createElement('div');
-captureBackdrop.className = 'modal-backdrop';
-captureBackdrop.innerHTML =
-  `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="captureTitle">
-     <h3 id="captureTitle">Capture scene</h3>
-     <form id="captureForm">
-       <input id="captureName" class="name-edit" placeholder="scene name" autocomplete="off" />
-       <div class="capture-members" id="captureMembers"></div>
-       <div class="actions"><button type="button" data-act="cancel">Cancel</button><button class="go" type="submit">Capture</button></div>
-     </form>
-   </div>`;
-document.body.appendChild(captureBackdrop);
+// ---- capture-scene picker (name + searchable device checklist) ----
+const captureSceneModal = createPickerModal({
+  title: 'Capture scene',
+  submitLabel: 'Capture',
+  note: 'The current state of the selected devices will be captured.',
+  get initialName(){ return store.suggestName('scene', new Set(store.scenes.keys())); },
+  onSubmit: (name, devices) => captureScene(name, devices),
+});
 
-function openCapture(){
-  const name=document.getElementById('captureName'); name.value='';
-  const members=document.getElementById('captureMembers');
-  const list=[...store.devices.keys()].sort((a,b)=>a.localeCompare(b));
-  members.innerHTML = list.length
-    ? list.map(n=>`<label><input type="checkbox" value="${esc(n)}" checked> ${esc(n)}</label>`).join('')
-    : '<span class="legend">no devices to capture</span>';
-  captureBackdrop.classList.add('open');
-  name.focus();
-}
-function closeCapture(returnFocus){
-  if (!captureBackdrop.classList.contains('open')) return;
-  captureBackdrop.classList.remove('open');
-  if (returnFocus) document.getElementById('captureSceneBtn')?.focus();
-}
-captureBackdrop.addEventListener('click', e=>{
-  if (e.target===captureBackdrop){ closeCapture(true); return; }
-  if (e.target.closest('button')?.dataset.act==='cancel'){ closeCapture(true); }
-});
-captureBackdrop.addEventListener('keydown', e=>{
-  if (!captureBackdrop.classList.contains('open') || e.key!=='Tab') return;
-  const els = [...captureBackdrop.querySelectorAll('input, button')];
-  const first = els[0], last = els[els.length-1];
-  if (e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
-  else if (!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
-});
-document.getElementById('captureForm').addEventListener('submit', async ev=>{
-  ev.preventDefault();
-  const name=document.getElementById('captureName').value.trim(); if(!name) return;
-  const devices=[...document.querySelectorAll('#captureMembers input[type=checkbox]:checked')].map(c=>c.value);
+async function captureScene(name, devices){
+  if (!name) return;
   try {
     const r = await api('/api/scenes/'+encodeURIComponent(name), { method:'PUT', body:JSON.stringify({devices}) });
-    if (!r.ok) toast('Could not capture scene');
-    else { toast('Scene captured'); closeCapture(); load(); }
+    if (r.status===400) toast('That name can’t be used');
+    else if (!r.ok) toast('Could not capture scene');
+    else toast('Scene captured');   // success path: SSE 'scenes' frame refreshes the list
   } catch(e){ if(e.message!=='401') toast('Could not capture scene'); }
-});
+}
 
 export function mount(container){
   container.innerHTML =
@@ -156,7 +122,9 @@ export function mount(container){
      <div class="empty" id="scenesEmpty" hidden>No scenes yet. Capture one above.</div>`;
   scenesGrid = container.querySelector('#scenesGrid');
   emptyEl = container.querySelector('#scenesEmpty');
-  container.querySelector('#captureSceneBtn').addEventListener('click', openCapture);
+  container.querySelector('#captureSceneBtn').addEventListener('click', ev=>{
+    captureSceneModal.open(ev.currentTarget);
+  });
   mounted = true;
   return load();
 }
@@ -164,7 +132,6 @@ export function mount(container){
 export function unmount(){
   mounted = false;
   sceneMenu.close();     // drop this view's open kebab dropdown, if any
-  closeCapture(false);   // and its capture-scene modal, if open
   scenesGrid = null; emptyEl = null;
 }
 
