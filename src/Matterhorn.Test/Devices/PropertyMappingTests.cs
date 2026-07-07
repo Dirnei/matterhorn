@@ -129,4 +129,18 @@ public class PropertyMappingTests
         var props = PropertyMapping.Map(new[] { R(MatterClusters.Thermostat, 0x1C, "4") });
         Assert.Equal("heat", props["system_mode"]);
     }
+
+    [Fact]
+    public void Maps_fan_mode_medium()
+    {
+        var props = PropertyMapping.Map(new[] { R(MatterClusters.FanControl, 0, "2") });
+        Assert.Equal("medium", props["fan_mode"]);
+    }
+
+    [Fact]
+    public void Maps_fan_percent_current()
+    {
+        var props = PropertyMapping.Map(new[] { R(MatterClusters.FanControl, 6, "60") });
+        Assert.Equal(60, Assert.IsType<int>(props["percent"]));
+    }
 }

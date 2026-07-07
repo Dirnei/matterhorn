@@ -147,4 +147,21 @@ public class CommandMappingTests
     {
         Assert.Empty(CommandMapping.Map(Payload("""{"system_mode":"garbage"}""")));
     }
+
+    [Fact]
+    public void Fan_mode_medium_maps_to_attribute_write()
+    {
+        var a = Attr(Assert.Single(CommandMapping.Map(Payload("""{"fan_mode":"medium"}"""))));
+        Assert.Equal(MatterClusters.FanControl, a.ClusterId);
+        Assert.Equal(0x00u, a.AttributeId);
+        Assert.Equal(2, Assert.IsType<int>(a.Value));
+    }
+
+    [Fact]
+    public void Fan_percent_maps_to_percent_setting_write()
+    {
+        var a = Attr(Assert.Single(CommandMapping.Map(Payload("""{"percent":60}"""))));
+        Assert.Equal(0x02u, a.AttributeId);
+        Assert.Equal(60, Assert.IsType<int>(a.Value));
+    }
 }

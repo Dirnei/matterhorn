@@ -24,6 +24,7 @@ public static class MatterClusters
     public const uint WindowCovering = 0x0102;
     public const uint DoorLock = 0x0101;
     public const uint Thermostat = 0x0201;
+    public const uint FanControl = 0x0202;
 
     // Utility clusters read during node interview parsing.
     public const uint BasicInformation = 0x0028;

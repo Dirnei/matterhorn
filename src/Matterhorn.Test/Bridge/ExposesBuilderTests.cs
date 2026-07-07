@@ -96,4 +96,13 @@ public class ExposesBuilderTests
         var mode = Assert.Single(exposes, x => x.Property == "system_mode");
         Assert.Equal(new[] { "off", "auto", "cool", "heat" }, mode.Values);
     }
+
+    [Fact]
+    public void Fan_control_exposes_mode_enum_and_percent()
+    {
+        var exposes = ExposesBuilder.Build(new[] { MatterClusters.FanControl }, 0);
+        var mode = Assert.Single(exposes, x => x.Property == "fan_mode");
+        Assert.Equal(new[] { "off", "low", "medium", "high", "on", "auto" }, mode.Values);
+        Assert.Contains(exposes, x => x.Property == "percent" && x.ValueMax == 100);
+    }
 }

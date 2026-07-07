@@ -81,6 +81,11 @@ public static class ExposesBuilder
             list.Add(new("numeric", "occupied_cooling_setpoint", All, ValueMin: 5, ValueMax: 35, Unit: "°C"));
             list.Add(new("enum", "system_mode", All, Values: new[] { "off", "auto", "cool", "heat" }));
         }
+        if (has.Contains(MatterClusters.FanControl))
+        {
+            list.Add(new("enum", "fan_mode", All, Values: new[] { "off", "low", "medium", "high", "on", "auto" }));
+            list.Add(new("numeric", "percent", All, ValueMin: 0, ValueMax: 100, Unit: "%"));
+        }
         return list;
     }
 }

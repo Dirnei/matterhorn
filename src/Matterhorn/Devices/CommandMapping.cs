@@ -14,7 +14,7 @@ public static class CommandMapping
 
     private static readonly Handler[] Handlers =
     [
-        State, Brightness, ColorTemp, ColorHueSat, CoverPosition, Thermostat,
+        State, Brightness, ColorTemp, ColorHueSat, CoverPosition, Thermostat, Fan,
     ];
 
     public static IReadOnlyList<IDeviceWrite> Map(IReadOnlyDictionary<string, JsonElement> payload)
@@ -91,5 +91,16 @@ public static class CommandMapping
             var mode = m.GetString() switch { "off" => 0, "auto" => 1, "cool" => 3, "heat" => 4, _ => -1 };
             if (mode >= 0) w.Add(new AttributeWriteSpec(MatterClusters.Thermostat, 0x1C, mode));
         }
+    }
+
+    private static void Fan(IReadOnlyDictionary<string, JsonElement> p, List<IDeviceWrite> w)
+    {
+        if (p.TryGetValue("fan_mode", out var m))
+        {
+            var mode = m.GetString() switch { "off" => 0, "low" => 1, "medium" => 2, "high" => 3, "on" => 4, "auto" => 5, _ => -1 };
+            if (mode >= 0) w.Add(new AttributeWriteSpec(MatterClusters.FanControl, 0x00, mode));
+        }
+        if (p.TryGetValue("percent", out var pct))
+            w.Add(new AttributeWriteSpec(MatterClusters.FanControl, 0x02, pct.GetInt32()));
     }
 }

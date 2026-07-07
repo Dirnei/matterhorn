@@ -48,6 +48,9 @@ public static class PropertyMapping
         new(MatterClusters.Thermostat, 0x11, "occupied_cooling_setpoint", v => v.GetInt32() / 100.0),
         new(MatterClusters.Thermostat, 0x1C, "system_mode",
             v => v.GetInt32() switch { 0 => "off", 1 => "auto", 3 => "cool", 4 => "heat", _ => "unknown" }),
+        new(MatterClusters.FanControl, 0, "fan_mode",
+            v => v.GetInt32() switch { 0 => "off", 1 => "low", 2 => "medium", 3 => "high", 4 => "on", 5 => "auto", _ => "unknown" }),
+        new(MatterClusters.FanControl, 6, "percent", v => v.GetInt32()),
     ];
 
     public static IReadOnlyDictionary<string, object?> Map(IEnumerable<AttributeReading> readings)
