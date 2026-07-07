@@ -5,7 +5,6 @@ import * as store from '../store.js';
 
 let grid = null, emptyEl = null;
 let mounted = false;
-const SETTABLE = new Set(['state','brightness','color_temp']);
 const pickers = new Map();   // friendly_name -> { picker, dragging }
 const HSMAX = 254;           // Matter hue/saturation max
 
@@ -77,8 +76,9 @@ function station(d){
   el.className='station'; el.id='dev-'+cssId(d.friendly_name);
   const hasColor = d.exposes.some(e=>e.property==='hue') && d.exposes.some(e=>e.property==='saturation');
   const skip = new Set(hasColor ? ['hue','saturation'] : []);
-  const settable=d.exposes.filter(e=>SETTABLE.has(e.property)&&(e.access&2)&&!skip.has(e.property));
-  const readonly=d.exposes.filter(e=>(!SETTABLE.has(e.property)||!(e.access&2))&&!skip.has(e.property));
+  skip.add('transition');                                   // modifier, not a control
+  const settable = d.exposes.filter(e=>(e.access&2) && !skip.has(e.property));
+  const readonly = d.exposes.filter(e=>!(e.access&2) && !skip.has(e.property));
   el.innerHTML =
     `<div class="st-head">
        <div><div class="name">${esc(d.friendly_name)}</div>
@@ -128,7 +128,14 @@ function colorControl(name){
 
 function control(name,e){
   const wrap=document.createElement('div');
-  if (e.property==='state'){
+  if (e.type==='enum'){
+    wrap.className='ctl';
+    const label=esc(e.property.replace('_',' '));
+    const btns=(e.values||[]).map(v=>`<button class="seg" data-prop="${e.property}" data-val="${esc(v)}">${esc(v.toLowerCase())}</button>`).join('');
+    wrap.innerHTML=`<div class="row"><span class="legend">${label}</span></div><div class="segmented">${btns}</div>`;
+    wrap.querySelectorAll('button.seg').forEach(b=>
+      b.addEventListener('click',()=>patch(name,{[e.property]:b.dataset.val})));
+  } else if (e.property==='state'){
     wrap.className='row';
     wrap.innerHTML=`<span class="legend">state</span>
       <span class="switch"><input type="checkbox" data-prop="state"><span class="slot"></span><span class="knob"></span></span>`;
@@ -175,6 +182,8 @@ function applyState(name){
     if (t){ t.checked=String(val).toUpperCase()==='ON'; continue; }
     const sl=el.querySelector(`input[type=range][data-prop="${prop}"]`);
     if (sl){ if(sl.dataset.dragging!=='1'){ sl.value=val; const box=el.querySelector(`input[type=number][data-prop="${prop}-val"]`); if(box && box!==document.activeElement) box.value=val; } continue; }
+    const segs=el.querySelectorAll(`button.seg[data-prop="${prop}"]`);
+    if (segs.length){ segs.forEach(b=>b.classList.toggle('active', b.dataset.val.toUpperCase()===String(val).toUpperCase())); continue; }
     const ro=el.querySelector(`.readout[data-prop="${prop}"]`);
     if (ro) ro.firstChild.textContent=fmt(val);
   }
