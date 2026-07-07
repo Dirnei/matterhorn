@@ -14,7 +14,7 @@ public static class CommandMapping
 
     private static readonly Handler[] Handlers =
     [
-        State, Brightness, ColorTemp, ColorHueSat, CoverPosition, Thermostat, Fan,
+        State, Brightness, ColorTemp, ColorHueSat, ColorXy, CoverPosition, Thermostat, Fan,
     ];
 
     public static IReadOnlyList<IDeviceWrite> Map(IReadOnlyDictionary<string, JsonElement> payload)
@@ -71,6 +71,13 @@ public static class CommandMapping
         else if (hasSat)
             w.Add(new CommandSpec(MatterClusters.ColorControl, "MoveToSaturation",
                 Args(("saturation", sat.GetInt32()))));
+    }
+
+    private static void ColorXy(IReadOnlyDictionary<string, JsonElement> p, List<IDeviceWrite> w)
+    {
+        if (!p.TryGetValue("color_x", out var x) || !p.TryGetValue("color_y", out var y)) return;
+        w.Add(new CommandSpec(MatterClusters.ColorControl, "MoveToColor",
+            Args(("colorX", (int)Math.Round(x.GetDouble() * 65536)), ("colorY", (int)Math.Round(y.GetDouble() * 65536)))));
     }
 
     private static void CoverPosition(IReadOnlyDictionary<string, JsonElement> p, List<IDeviceWrite> w)

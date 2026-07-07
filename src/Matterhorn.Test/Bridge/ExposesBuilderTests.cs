@@ -46,6 +46,21 @@ public class ExposesBuilderTests
     }
 
     [Fact]
+    public void Xy_feature_adds_color_x_and_color_y()
+    {
+        var exposes = ExposesBuilder.Build(new[] { MatterClusters.ColorControl }, 0x08);
+        var x = Assert.Single(exposes, e => e.Property == "color_x");
+        var y = Assert.Single(exposes, e => e.Property == "color_y");
+        Assert.Equal("numeric", x.Type);
+        Assert.Equal(0, x.ValueMin);
+        Assert.Equal(1, x.ValueMax);
+        Assert.Equal(0, y.ValueMin);
+        Assert.Equal(1, y.ValueMax);
+        Assert.DoesNotContain(exposes, e => e.Property == "hue");
+        Assert.DoesNotContain(exposes, e => e.Property == "color_temp");
+    }
+
+    [Fact]
     public void Pressure_cluster_exposes_read_only_pressure()
     {
         var exposes = ExposesBuilder.Build(new[] { MatterClusters.PressureMeasurement }, 0);

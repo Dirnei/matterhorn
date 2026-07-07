@@ -164,4 +164,20 @@ public class CommandMappingTests
         Assert.Equal(0x02u, a.AttributeId);
         Assert.Equal(60, Assert.IsType<int>(a.Value));
     }
+
+    [Fact]
+    public void Color_xy_together_map_to_MoveToColor()
+    {
+        var c = Cmd(Assert.Single(CommandMapping.Map(Payload("""{"color_x":0.5,"color_y":0.4}"""))));
+        Assert.Equal(MatterClusters.ColorControl, c.ClusterId);
+        Assert.Equal("MoveToColor", c.CommandName);
+        Assert.Equal(32768, Assert.IsType<int>(c.Payload["colorX"]));
+        Assert.Equal(26214, Assert.IsType<int>(c.Payload["colorY"]));
+    }
+
+    [Fact]
+    public void Color_x_only_produces_no_command()
+    {
+        Assert.Empty(CommandMapping.Map(Payload("""{"color_x":0.5}""")));
+    }
 }

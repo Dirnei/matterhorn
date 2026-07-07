@@ -25,6 +25,11 @@ public static class ExposesBuilder
             }
             if ((colorFeatures & 0x10) != 0) // Color Temperature
                 list.Add(new("numeric", "color_temp", All, ValueMin: 147, ValueMax: 500, Unit: "mired"));
+            if ((colorFeatures & 0x08) != 0) // XY
+            {
+                list.Add(new("numeric", "color_x", All, ValueMin: 0, ValueMax: 1));
+                list.Add(new("numeric", "color_y", All, ValueMin: 0, ValueMax: 1));
+            }
         }
         if (has.Contains(MatterClusters.BooleanState))
             list.Add(new("binary", "contact", Published));

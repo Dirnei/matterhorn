@@ -143,4 +143,19 @@ public class PropertyMappingTests
         var props = PropertyMapping.Map(new[] { R(MatterClusters.FanControl, 6, "60") });
         Assert.Equal(60, Assert.IsType<int>(props["percent"]));
     }
+
+    [Fact]
+    public void Maps_color_x_from_currentx_to_unit_fraction()
+    {
+        // CurrentX is 0..65279 in 1/65536 units; 32768 ~= 0.5.
+        var props = PropertyMapping.Map(new[] { R(MatterClusters.ColorControl, 3, "32768") });
+        Assert.Equal(0.5, Assert.IsType<double>(props["color_x"]), 2);
+    }
+
+    [Fact]
+    public void Maps_color_y_from_currenty_to_unit_fraction()
+    {
+        var props = PropertyMapping.Map(new[] { R(MatterClusters.ColorControl, 4, "26214") });
+        Assert.Equal(0.4, Assert.IsType<double>(props["color_y"]), 2);
+    }
 }

@@ -20,6 +20,8 @@ public static class PropertyMapping
         new(MatterClusters.ColorControl, 1, "saturation", v => v.GetInt32()),
         new(MatterClusters.ColorControl, 8, "color_mode",
             v => v.GetInt32() switch { 0 => "hs", 1 => "xy", 2 => "ct", _ => "unknown" }),
+        new(MatterClusters.ColorControl, 3, "color_x", v => v.GetInt32() / 65536.0),
+        new(MatterClusters.ColorControl, 4, "color_y", v => v.GetInt32() / 65536.0),
         new(MatterClusters.BooleanState, 0, "contact", v => v.GetBoolean()),
         new(MatterClusters.OccupancySensing, 0, "occupancy", v => v.GetInt32() != 0),
         new(MatterClusters.TemperatureMeasurement, 0, "temperature", v => v.GetInt32() / 100.0),
