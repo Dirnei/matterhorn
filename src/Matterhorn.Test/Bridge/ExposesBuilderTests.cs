@@ -44,4 +44,23 @@ public class ExposesBuilderTests
         Assert.Contains(exposes, e => e.Property == "color_temp");
         Assert.DoesNotContain(exposes, e => e.Property == "hue");
     }
+
+    [Fact]
+    public void Pressure_cluster_exposes_read_only_pressure()
+    {
+        var exposes = ExposesBuilder.Build(new[] { MatterClusters.PressureMeasurement }, 0);
+        var e = Assert.Single(exposes, x => x.Property == "pressure");
+        Assert.Equal("numeric", e.Type);
+        Assert.Equal(1, e.Access);          // Published only
+        Assert.Equal("hPa", e.Unit);
+    }
+
+    [Fact]
+    public void Power_measurement_exposes_power_voltage_current()
+    {
+        var exposes = ExposesBuilder.Build(new[] { MatterClusters.ElectricalPowerMeasurement }, 0);
+        Assert.Contains(exposes, x => x.Property == "power" && x.Unit == "W");
+        Assert.Contains(exposes, x => x.Property == "voltage" && x.Unit == "V");
+        Assert.Contains(exposes, x => x.Property == "current" && x.Unit == "A");
+    }
 }

@@ -37,7 +37,36 @@ public static class ExposesBuilder
         if (has.Contains(MatterClusters.IlluminanceMeasurement))
             list.Add(new("numeric", "illuminance", Published, Unit: "lx"));
         if (has.Contains(MatterClusters.PowerSource))
+        {
             list.Add(new("numeric", "battery", Published, ValueMin: 0, ValueMax: 100, Unit: "%"));
+            list.Add(new("binary", "battery_low", Published));
+        }
+        if (has.Contains(MatterClusters.PressureMeasurement))
+            list.Add(new("numeric", "pressure", Published, Unit: "hPa"));
+        if (has.Contains(MatterClusters.FlowMeasurement))
+            list.Add(new("numeric", "flow", Published, Unit: "m³/h"));
+        if (has.Contains(MatterClusters.SmokeCoAlarm))
+        {
+            list.Add(new("binary", "smoke", Published));
+            list.Add(new("binary", "carbon_monoxide", Published));
+        }
+        if (has.Contains(MatterClusters.AirQuality))
+            list.Add(new("enum", "air_quality", Published,
+                Values: new[] { "unknown", "good", "fair", "moderate", "poor", "very_poor", "extremely_poor" }));
+        if (has.Contains(MatterClusters.CarbonDioxideConcentration))
+            list.Add(new("numeric", "co2", Published, Unit: "ppm"));
+        if (has.Contains(MatterClusters.Pm25Concentration))
+            list.Add(new("numeric", "pm25", Published, Unit: "µg/m³"));
+        if (has.Contains(MatterClusters.Pm10Concentration))
+            list.Add(new("numeric", "pm10", Published, Unit: "µg/m³"));
+        if (has.Contains(MatterClusters.ElectricalPowerMeasurement))
+        {
+            list.Add(new("numeric", "power", Published, Unit: "W"));
+            list.Add(new("numeric", "voltage", Published, Unit: "V"));
+            list.Add(new("numeric", "current", Published, Unit: "A"));
+        }
+        if (has.Contains(MatterClusters.ElectricalEnergyMeasurement))
+            list.Add(new("numeric", "energy", Published, Unit: "kWh"));
         return list;
     }
 }

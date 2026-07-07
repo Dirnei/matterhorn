@@ -26,6 +26,20 @@ public static class PropertyMapping
         new(MatterClusters.RelativeHumidityMeasurement, 0, "humidity", v => v.GetInt32() / 100.0),
         new(MatterClusters.IlluminanceMeasurement, 0, "illuminance", v => Math.Pow(10, (v.GetInt32() - 1) / 10000.0)),
         new(MatterClusters.PowerSource, 12, "battery", v => v.GetInt32() / 2),
+        new(MatterClusters.PressureMeasurement, 0, "pressure", v => v.GetInt32() / 10.0),
+        new(MatterClusters.FlowMeasurement, 0, "flow", v => v.GetInt32() / 10.0),
+        new(MatterClusters.SmokeCoAlarm, 1, "smoke", v => v.GetInt32() != 0),
+        new(MatterClusters.SmokeCoAlarm, 2, "carbon_monoxide", v => v.GetInt32() != 0),
+        new(MatterClusters.AirQuality, 0, "air_quality",
+            v => v.GetInt32() switch { 0 => "unknown", 1 => "good", 2 => "fair", 3 => "moderate", 4 => "poor", 5 => "very_poor", 6 => "extremely_poor", _ => "unknown" }),
+        new(MatterClusters.CarbonDioxideConcentration, 0, "co2", v => v.GetDouble()),
+        new(MatterClusters.Pm25Concentration, 0, "pm25", v => v.GetDouble()),
+        new(MatterClusters.Pm10Concentration, 0, "pm10", v => v.GetDouble()),
+        new(MatterClusters.ElectricalPowerMeasurement, 8, "power", v => v.GetInt64() / 1000.0),
+        new(MatterClusters.ElectricalPowerMeasurement, 4, "voltage", v => v.GetInt64() / 1000.0),
+        new(MatterClusters.ElectricalPowerMeasurement, 5, "current", v => v.GetInt64() / 1000.0),
+        new(MatterClusters.ElectricalEnergyMeasurement, 1, "energy", v => v.GetInt64() / 1_000_000.0),
+        new(MatterClusters.PowerSource, 14, "battery_low", v => v.GetInt32() != 0),
     ];
 
     public static IReadOnlyDictionary<string, object?> Map(IEnumerable<AttributeReading> readings)

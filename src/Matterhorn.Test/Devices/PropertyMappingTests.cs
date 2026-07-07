@@ -65,4 +65,32 @@ public class PropertyMappingTests
         Assert.Equal(58, Assert.IsType<int>(props["saturation"]));
         Assert.Equal("hs", props["color_mode"]);
     }
+
+    [Fact]
+    public void Maps_pressure_tenths_kpa_to_hpa()
+    {
+        var props = PropertyMapping.Map(new[] { R(MatterClusters.PressureMeasurement, 0, "10132") });
+        Assert.Equal(1013.2, Assert.IsType<double>(props["pressure"]), 1);
+    }
+
+    [Fact]
+    public void Maps_smoke_state_nonzero_to_true()
+    {
+        var props = PropertyMapping.Map(new[] { R(MatterClusters.SmokeCoAlarm, 1, "1") });
+        Assert.True(Assert.IsType<bool>(props["smoke"]));
+    }
+
+    [Fact]
+    public void Maps_active_power_milliwatts_to_watts()
+    {
+        var props = PropertyMapping.Map(new[] { R(MatterClusters.ElectricalPowerMeasurement, 8, "15500") });
+        Assert.Equal(15.5, Assert.IsType<double>(props["power"]), 1);
+    }
+
+    [Fact]
+    public void Maps_battery_charge_level_warning_to_battery_low_true()
+    {
+        var props = PropertyMapping.Map(new[] { R(MatterClusters.PowerSource, 14, "1") });
+        Assert.True(Assert.IsType<bool>(props["battery_low"]));
+    }
 }

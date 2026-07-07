@@ -12,6 +12,15 @@ public static class MatterClusters
     public const uint RelativeHumidityMeasurement = 0x0405;
     public const uint IlluminanceMeasurement = 0x0400;
     public const uint PowerSource = 0x002F;
+    public const uint PressureMeasurement = 0x0403;
+    public const uint FlowMeasurement = 0x0404;
+    public const uint SmokeCoAlarm = 0x005C;
+    public const uint AirQuality = 0x005B;
+    public const uint CarbonDioxideConcentration = 0x040D;
+    public const uint Pm25Concentration = 0x042A;
+    public const uint Pm10Concentration = 0x042D;
+    public const uint ElectricalPowerMeasurement = 0x0090;
+    public const uint ElectricalEnergyMeasurement = 0x0091;
 
     // Utility clusters read during node interview parsing.
     public const uint BasicInformation = 0x0028;
