@@ -64,10 +64,21 @@ public sealed class MatterEndpointActor : ReceiveActor
 
     private async Task OnSet(ApplySet msg)
     {
-        foreach (var cmd in CommandMapping.Map(msg.Payload))
+        foreach (var action in CommandMapping.Map(msg.Payload))
         {
-            try { await _controller.InvokeCommand(_nodeId, _endpoint, cmd, CancellationToken.None); }
-            catch (Exception ex) { _log.Error(ex, "InvokeCommand failed for {Name}", _name); }
+            try
+            {
+                switch (action)
+                {
+                    case CommandSpec c:
+                        await _controller.InvokeCommand(_nodeId, _endpoint, c, CancellationToken.None);
+                        break;
+                    case AttributeWriteSpec a:
+                        await _controller.WriteAttribute(_nodeId, _endpoint, a.ClusterId, a.AttributeId, a.Value, CancellationToken.None);
+                        break;
+                }
+            }
+            catch (Exception ex) { _log.Error(ex, "Write failed for {Name}", _name); }
         }
     }
 }

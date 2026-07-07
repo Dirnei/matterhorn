@@ -9,11 +9,12 @@ public class CommandMappingTests
     private static IReadOnlyDictionary<string, JsonElement> Payload(string json) =>
         JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json)!;
 
+    private static CommandSpec Cmd(IDeviceWrite w) => Assert.IsType<CommandSpec>(w);
+
     [Fact]
     public void State_ON_maps_to_OnOff_On()
     {
-        var cmds = CommandMapping.Map(Payload("""{"state":"ON"}"""));
-        var c = Assert.Single(cmds);
+        var c = Cmd(Assert.Single(CommandMapping.Map(Payload("""{"state":"ON"}"""))));
         Assert.Equal(MatterClusters.OnOff, c.ClusterId);
         Assert.Equal("On", c.CommandName);
     }
@@ -21,14 +22,14 @@ public class CommandMappingTests
     [Fact]
     public void State_OFF_maps_to_OnOff_Off()
     {
-        var c = Assert.Single(CommandMapping.Map(Payload("""{"state":"OFF"}""")));
+        var c = Cmd(Assert.Single(CommandMapping.Map(Payload("""{"state":"OFF"}"""))));
         Assert.Equal("Off", c.CommandName);
     }
 
     [Fact]
     public void Brightness_maps_to_MoveToLevelWithOnOff_with_level()
     {
-        var c = Assert.Single(CommandMapping.Map(Payload("""{"brightness":200}""")));
+        var c = Cmd(Assert.Single(CommandMapping.Map(Payload("""{"brightness":200}"""))));
         Assert.Equal(MatterClusters.LevelControl, c.ClusterId);
         Assert.Equal("MoveToLevelWithOnOff", c.CommandName);
         Assert.Equal(200, Assert.IsType<int>(c.Payload["level"]));
@@ -37,7 +38,7 @@ public class CommandMappingTests
     [Fact]
     public void Color_temp_maps_to_MoveToColorTemperature_mireds()
     {
-        var c = Assert.Single(CommandMapping.Map(Payload("""{"color_temp":370}""")));
+        var c = Cmd(Assert.Single(CommandMapping.Map(Payload("""{"color_temp":370}"""))));
         Assert.Equal(MatterClusters.ColorControl, c.ClusterId);
         Assert.Equal("MoveToColorTemperature", c.CommandName);
         Assert.Equal(370, Assert.IsType<int>(c.Payload["colorTemperatureMireds"]));
@@ -48,8 +49,8 @@ public class CommandMappingTests
     {
         var cmds = CommandMapping.Map(Payload("""{"state":"ON","brightness":128}"""));
         Assert.Equal(2, cmds.Count);
-        Assert.Equal("On", cmds[0].CommandName);
-        Assert.Equal("MoveToLevelWithOnOff", cmds[1].CommandName);
+        Assert.Equal("On", Cmd(cmds[0]).CommandName);
+        Assert.Equal("MoveToLevelWithOnOff", Cmd(cmds[1]).CommandName);
     }
 
     [Fact]
@@ -61,7 +62,7 @@ public class CommandMappingTests
     [Fact]
     public void Hue_and_saturation_together_produce_one_MoveToHueAndSaturation()
     {
-        var c = Assert.Single(CommandMapping.Map(Payload("""{"hue":100,"saturation":200}""")));
+        var c = Cmd(Assert.Single(CommandMapping.Map(Payload("""{"hue":100,"saturation":200}"""))));
         Assert.Equal(MatterClusters.ColorControl, c.ClusterId);
         Assert.Equal("MoveToHueAndSaturation", c.CommandName);
         Assert.Equal(100, Assert.IsType<int>(c.Payload["hue"]));
@@ -71,7 +72,7 @@ public class CommandMappingTests
     [Fact]
     public void Hue_only_produces_MoveToHue()
     {
-        var c = Assert.Single(CommandMapping.Map(Payload("""{"hue":42}""")));
+        var c = Cmd(Assert.Single(CommandMapping.Map(Payload("""{"hue":42}"""))));
         Assert.Equal("MoveToHue", c.CommandName);
         Assert.Equal(42, Assert.IsType<int>(c.Payload["hue"]));
     }
@@ -79,7 +80,7 @@ public class CommandMappingTests
     [Fact]
     public void Saturation_only_produces_MoveToSaturation()
     {
-        var c = Assert.Single(CommandMapping.Map(Payload("""{"saturation":77}""")));
+        var c = Cmd(Assert.Single(CommandMapping.Map(Payload("""{"saturation":77}"""))));
         Assert.Equal("MoveToSaturation", c.CommandName);
         Assert.Equal(77, Assert.IsType<int>(c.Payload["saturation"]));
     }
