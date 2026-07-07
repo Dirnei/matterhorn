@@ -39,6 +39,8 @@ public static class CommandMapping
             case "OPEN": w.Add(new CommandSpec(MatterClusters.WindowCovering, "UpOrOpen", NoArgs)); break;
             case "CLOSE": w.Add(new CommandSpec(MatterClusters.WindowCovering, "DownOrClose", NoArgs)); break;
             case "STOP": w.Add(new CommandSpec(MatterClusters.WindowCovering, "StopMotion", NoArgs)); break;
+            case "LOCK": w.Add(new CommandSpec(MatterClusters.DoorLock, "LockDoor", NoArgs)); break;
+            case "UNLOCK": w.Add(new CommandSpec(MatterClusters.DoorLock, "UnlockDoor", NoArgs)); break;
         }
     }
 

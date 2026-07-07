@@ -101,4 +101,18 @@ public class PropertyMappingTests
         var props = PropertyMapping.Map(new[] { R(MatterClusters.WindowCovering, 8, "30") });
         Assert.Equal(70, Assert.IsType<int>(props["position"]));
     }
+
+    [Fact]
+    public void Maps_lockstate_locked_to_state_LOCK()
+    {
+        var props = PropertyMapping.Map(new[] { R(MatterClusters.DoorLock, 0, "1") });
+        Assert.Equal("LOCK", props["state"]);
+    }
+
+    [Fact]
+    public void Maps_lockstate_unlocked_to_state_UNLOCK()
+    {
+        var props = PropertyMapping.Map(new[] { R(MatterClusters.DoorLock, 0, "2") });
+        Assert.Equal("UNLOCK", props["state"]);
+    }
 }

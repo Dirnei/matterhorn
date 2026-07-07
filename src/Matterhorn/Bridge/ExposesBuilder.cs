@@ -72,6 +72,8 @@ public static class ExposesBuilder
             list.Add(new("enum", "state", Set, Values: new[] { "OPEN", "CLOSE", "STOP" }));
             list.Add(new("numeric", "position", All, ValueMin: 0, ValueMax: 100, Unit: "%"));
         }
+        if (has.Contains(MatterClusters.DoorLock))
+            list.Add(new("enum", "state", All, Values: new[] { "LOCK", "UNLOCK" }));
         return list;
     }
 }

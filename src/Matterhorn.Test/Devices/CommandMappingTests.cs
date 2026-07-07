@@ -108,4 +108,19 @@ public class CommandMappingTests
         Assert.Equal("GoToLiftPercentage", c.CommandName);
         Assert.Equal(30, Assert.IsType<int>(c.Payload["liftPercentageValue"]));
     }
+
+    [Fact]
+    public void State_LOCK_maps_to_DoorLock_LockDoor()
+    {
+        var c = Cmd(Assert.Single(CommandMapping.Map(Payload("""{"state":"LOCK"}"""))));
+        Assert.Equal(MatterClusters.DoorLock, c.ClusterId);
+        Assert.Equal("LockDoor", c.CommandName);
+    }
+
+    [Fact]
+    public void State_UNLOCK_maps_to_DoorLock_UnlockDoor()
+    {
+        var c = Cmd(Assert.Single(CommandMapping.Map(Payload("""{"state":"UNLOCK"}"""))));
+        Assert.Equal("UnlockDoor", c.CommandName);
+    }
 }

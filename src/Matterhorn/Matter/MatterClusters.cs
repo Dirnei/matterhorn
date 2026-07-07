@@ -22,6 +22,7 @@ public static class MatterClusters
     public const uint ElectricalPowerMeasurement = 0x0090;
     public const uint ElectricalEnergyMeasurement = 0x0091;
     public const uint WindowCovering = 0x0102;
+    public const uint DoorLock = 0x0101;
 
     // Utility clusters read during node interview parsing.
     public const uint BasicInformation = 0x0028;

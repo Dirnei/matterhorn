@@ -76,4 +76,14 @@ public class ExposesBuilderTests
         Assert.Equal(0, pos.ValueMin);
         Assert.Equal(100, pos.ValueMax);
     }
+
+    [Fact]
+    public void Door_lock_exposes_state_enum_lock_unlock()
+    {
+        var exposes = ExposesBuilder.Build(new[] { MatterClusters.DoorLock }, 0);
+        var state = Assert.Single(exposes, x => x.Property == "state");
+        Assert.Equal("enum", state.Type);
+        Assert.Equal(new[] { "LOCK", "UNLOCK" }, state.Values);
+        Assert.Equal(7, state.Access);   // All
+    }
 }
