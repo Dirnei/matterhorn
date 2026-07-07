@@ -66,6 +66,9 @@ public sealed class MatterServerController(string wsUrl) : IMatterController
     public async Task InvokeCommand(ulong nodeId, ushort endpoint, CommandSpec command, CancellationToken ct) =>
         await Send(MatterServerProtocol.DeviceCommand(Interlocked.Increment(ref _messageId), nodeId, endpoint, command), ct);
 
+    public async Task WriteAttribute(ulong nodeId, ushort endpoint, uint clusterId, uint attributeId, object? value, CancellationToken ct) =>
+        await Send(MatterServerProtocol.WriteAttribute(Interlocked.Increment(ref _messageId), nodeId, endpoint, clusterId, attributeId, value), ct);
+
     public async Task<ulong> Commission(string setupCode, CancellationToken ct)
     {
         var result = await Request(id => MatterServerProtocol.CommissionWithCode(id, setupCode), ct);

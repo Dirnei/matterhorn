@@ -54,6 +54,19 @@ public static class MatterServerProtocol
             }
         });
 
+    public static string WriteAttribute(int messageId, ulong nodeId, ushort endpoint, uint clusterId, uint attributeId, object? value) =>
+        JsonSerializer.Serialize(new
+        {
+            message_id = messageId.ToString(),
+            command = "write_attribute",
+            args = new
+            {
+                node_id = nodeId,
+                attribute_path = $"{endpoint}/{clusterId}/{attributeId}",
+                value,
+            }
+        });
+
     /// <summary>
     /// Classifies an incoming frame: command replies carry a <c>message_id</c>, events don't.
     /// Returns true (and fills <paramref name="result"/>) only for reply frames.

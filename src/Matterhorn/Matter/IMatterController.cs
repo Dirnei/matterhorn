@@ -10,6 +10,7 @@ public interface IMatterController
 {
     IAsyncEnumerable<MatterEvent> ConnectAndListen(CancellationToken ct);
     Task InvokeCommand(ulong nodeId, ushort endpoint, CommandSpec command, CancellationToken ct);
+    Task WriteAttribute(ulong nodeId, ushort endpoint, uint clusterId, uint attributeId, object? value, CancellationToken ct);
     Task<ulong> Commission(string setupCode, CancellationToken ct);
     Task RemoveNode(ulong nodeId, CancellationToken ct);
 }

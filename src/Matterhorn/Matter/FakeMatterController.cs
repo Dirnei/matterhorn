@@ -10,8 +10,10 @@ public sealed class FakeMatterController : IMatterController
 {
     private readonly Channel<MatterEvent> _channel = Channel.CreateUnbounded<MatterEvent>();
     private readonly List<(ulong, ushort, CommandSpec)> _invocations = new();
+    private readonly List<(ulong, ushort, uint, uint, object?)> _attributeWrites = new();
 
     public IReadOnlyList<(ulong NodeId, ushort Endpoint, CommandSpec Cmd)> Invocations => _invocations;
+    public IReadOnlyList<(ulong NodeId, ushort Endpoint, uint ClusterId, uint AttributeId, object? Value)> AttributeWrites => _attributeWrites;
     public Func<string, ulong> OnCommission { get; set; } = _ => 1;
     public List<ulong> Removed { get; } = new();
 
@@ -40,6 +42,12 @@ public sealed class FakeMatterController : IMatterController
         if (EchoCommandsAsAttributes)
             foreach (var reading in Echo(nodeId, endpoint, command))
                 Emit(new AttributeChanged(reading));
+        return Task.CompletedTask;
+    }
+
+    public Task WriteAttribute(ulong nodeId, ushort endpoint, uint clusterId, uint attributeId, object? value, CancellationToken ct)
+    {
+        lock (_attributeWrites) _attributeWrites.Add((nodeId, endpoint, clusterId, attributeId, value));
         return Task.CompletedTask;
     }
 

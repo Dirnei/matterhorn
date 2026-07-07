@@ -30,6 +30,20 @@ public class MatterServerProtocolTests
     }
 
     [Fact]
+    public void WriteAttribute_serializes_write_attribute_command()
+    {
+        var json = MatterServerProtocol.WriteAttribute(7, nodeId: 42, endpoint: 1, clusterId: 0x0201, attributeId: 0x0012, value: 2100);
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        Assert.Equal("7", root.GetProperty("message_id").GetString());
+        Assert.Equal("write_attribute", root.GetProperty("command").GetString());
+        var args = root.GetProperty("args");
+        Assert.Equal(42UL, args.GetProperty("node_id").GetUInt64());
+        Assert.Equal("1/513/18", args.GetProperty("attribute_path").GetString());
+        Assert.Equal(2100, args.GetProperty("value").GetInt32());
+    }
+
+    [Fact]
     public void ParseIncoming_attribute_update_yields_AttributeChanged()
     {
         // matter-server attribute path format: "<endpoint>/<cluster>/<attribute>"

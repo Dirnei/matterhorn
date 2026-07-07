@@ -41,6 +41,19 @@ public class FakeMatterControllerTests
     }
 
     [Fact]
+    public async Task WriteAttribute_is_recorded()
+    {
+        var fake = new FakeMatterController();
+        await fake.WriteAttribute(42, 1, 0x0201, 0x0012, 2100, CancellationToken.None);
+        var w = Assert.Single(fake.AttributeWrites);
+        Assert.Equal(42UL, w.NodeId);
+        Assert.Equal((ushort)1, w.Endpoint);
+        Assert.Equal(0x0201u, w.ClusterId);
+        Assert.Equal(0x0012u, w.AttributeId);
+        Assert.Equal(2100, w.Value);
+    }
+
+    [Fact]
     public async Task Commission_uses_hook()
     {
         var fake = new FakeMatterController { OnCommission = _ => 42 };
