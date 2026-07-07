@@ -109,6 +109,11 @@
   .segmented .seg:hover { border-color:var(--enzian); }
   .segmented .seg.active { background:var(--enzian); border-color:var(--enzian); color:#fff; }
 
+  .btn-ident { flex:none; padding:6px 14px; border-radius:8px; cursor:pointer;
+    border:1px solid var(--enzian); background:transparent; color:var(--enzian); font:inherit; font-weight:600;
+    transition:background .15s, color .15s; }
+  .btn-ident:hover { background:var(--enzian); color:#fff; }
+
   .contour { position:fixed; right:-80px; bottom:-80px; width:420px; height:420px; z-index:-1; color:var(--enzian); opacity:.05; pointer-events:none; }
   .empty { text-align:center; color:var(--muted); padding:70px 20px; font-family:var(--mono); }
   .toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:var(--alpenglow); color:#fff; padding:8px 14px; border-radius:8px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:30; }

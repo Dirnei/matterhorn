@@ -128,7 +128,12 @@ function colorControl(name){
 
 function control(name,e){
   const wrap=document.createElement('div');
-  if (e.type==='enum'){
+  if (e.property==='identify'){
+    wrap.className='row';
+    wrap.innerHTML=`<span class="legend">identify</span><button class="btn-ident">blink</button>`;
+    wrap.querySelector('button').addEventListener('click',()=>patch(name,{identify:10}));
+    return wrap;
+  } else if (e.type==='enum'){
     wrap.className='ctl';
     const label=esc(e.property.replace('_',' '));
     const btns=(e.values||[]).map(v=>`<button class="seg" data-prop="${e.property}" data-val="${esc(v)}">${esc(v.toLowerCase())}</button>`).join('');
