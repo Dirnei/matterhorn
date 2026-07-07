@@ -196,4 +196,21 @@ public class CommandMappingTests
     {
         Assert.Empty(CommandMapping.Map(Payload("""{"color_x":0.5}""")));
     }
+
+    [Fact]
+    public void Identify_seconds_maps_to_Identify_command()
+    {
+        var c = Cmd(Assert.Single(CommandMapping.Map(Payload("""{"identify":5}"""))));
+        Assert.Equal(MatterClusters.Identify, c.ClusterId);
+        Assert.Equal("Identify", c.CommandName);
+        Assert.Equal(5, Assert.IsType<int>(c.Payload["identifyTime"]));
+    }
+
+    [Fact]
+    public void Effect_blink_maps_to_OffWithEffect()
+    {
+        var c = Cmd(Assert.Single(CommandMapping.Map(Payload("""{"effect":"blink"}"""))));
+        Assert.Equal(MatterClusters.OnOff, c.ClusterId);
+        Assert.Equal("OffWithEffect", c.CommandName);
+    }
 }

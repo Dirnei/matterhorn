@@ -14,7 +14,7 @@ public static class CommandMapping
 
     private static readonly Handler[] Handlers =
     [
-        State, Brightness, ColorTemp, ColorHueSat, ColorXy, CoverPosition, Thermostat, Fan,
+        State, Brightness, ColorTemp, ColorHueSat, ColorXy, CoverPosition, Thermostat, Fan, Effect, IdentifyCmd,
     ];
 
     public static IReadOnlyList<IDeviceWrite> Map(IReadOnlyDictionary<string, JsonElement> payload)
@@ -111,5 +111,18 @@ public static class CommandMapping
         }
         if (p.TryGetValue("percent", out var pct))
             w.Add(new AttributeWriteSpec(MatterClusters.FanControl, 0x02, pct.GetInt32()));
+    }
+
+    private static void Effect(IReadOnlyDictionary<string, JsonElement> p, List<IDeviceWrite> w)
+    {
+        if (!p.TryGetValue("effect", out _)) return;
+        w.Add(new CommandSpec(MatterClusters.OnOff, "OffWithEffect",
+            Args(("effectIdentifier", 0), ("effectVariant", 0))));
+    }
+
+    private static void IdentifyCmd(IReadOnlyDictionary<string, JsonElement> p, List<IDeviceWrite> w)
+    {
+        if (!p.TryGetValue("identify", out var v)) return;
+        w.Add(new CommandSpec(MatterClusters.Identify, "Identify", Args(("identifyTime", v.GetInt32()))));
     }
 }

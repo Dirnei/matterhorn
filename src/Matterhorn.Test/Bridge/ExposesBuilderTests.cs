@@ -120,4 +120,16 @@ public class ExposesBuilderTests
         Assert.Equal(new[] { "off", "low", "medium", "high", "on", "auto" }, mode.Values);
         Assert.Contains(exposes, x => x.Property == "percent" && x.ValueMax == 100);
     }
+
+    [Fact]
+    public void Identify_cluster_exposes_set_only_numeric_identify()
+    {
+        var exposes = ExposesBuilder.Build(new[] { MatterClusters.Identify }, 0);
+        var identify = Assert.Single(exposes, x => x.Property == "identify");
+        Assert.Equal("numeric", identify.Type);
+        Assert.Equal(2, identify.Access);   // Set-only
+        Assert.Equal(0, identify.ValueMin);
+        Assert.Equal(60, identify.ValueMax);
+        Assert.Equal("s", identify.Unit);
+    }
 }

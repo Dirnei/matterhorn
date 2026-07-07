@@ -91,6 +91,8 @@ public static class ExposesBuilder
             list.Add(new("enum", "fan_mode", All, Values: new[] { "off", "low", "medium", "high", "on", "auto" }));
             list.Add(new("numeric", "percent", All, ValueMin: 0, ValueMax: 100, Unit: "%"));
         }
+        if (has.Contains(MatterClusters.Identify))
+            list.Add(new("numeric", "identify", Set, ValueMin: 0, ValueMax: 60, Unit: "s"));
         return list;
     }
 }

@@ -5,6 +5,7 @@ public static class MatterClusters
 {
     public const uint OnOff = 0x0006;
     public const uint LevelControl = 0x0008;
+    public const uint Identify = 0x0003;
     public const uint ColorControl = 0x0300;
     public const uint BooleanState = 0x0045;
     public const uint OccupancySensing = 0x0406;
