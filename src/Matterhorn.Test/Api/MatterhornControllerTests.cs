@@ -45,6 +45,26 @@ public class MatterhornControllerTests : TestKit, IClassFixture<WebApplicationFa
     }
 
     [Fact]
+    public async Task List_devices_maps_enum_expose_values_to_dto()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGateway(probe.Ref);
+
+        var entry = new ExposeEntry("enum", "system_mode", 7, Values: new[] { "off", "heat" });
+        var descriptor = new DeviceDescriptor("thermostat", "1", 1, null, null, 0, 0, "Thermostat", true, new[] { entry }, "wifi");
+
+        var task = client.GetAsync("/api/devices");
+        probe.ExpectMsg<GetDevices>();
+        probe.Reply((IReadOnlyList<DeviceDescriptor>)new List<DeviceDescriptor> { descriptor });
+
+        var resp = await task;
+        resp.EnsureSuccessStatusCode();
+        var body = await resp.Content.ReadAsStringAsync();
+        Assert.Contains("\"type\":\"enum\"", body);
+        Assert.Contains("\"values\":[\"off\",\"heat\"]", body);
+    }
+
+    [Fact]
     public async Task Patch_device_forwards_SetDevice()
     {
         var probe = CreateTestProbe();

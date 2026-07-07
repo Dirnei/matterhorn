@@ -6,11 +6,13 @@ public record EndpointInfo(
     ushort VendorId, ushort ProductId, string DeviceType, bool Reachable,
     IReadOnlyList<uint> ClusterIds, string Transport = "unknown", uint ColorFeatures = 0);
 
-/// <summary>A Z2M-style exposes entry. <see cref="Access"/> is a bitmask (1=published, 2=set, 4=get).</summary>
+/// <summary>A Z2M-style exposes entry. <see cref="Access"/> is a bitmask (1=published, 2=set, 4=get).
+/// <see cref="Values"/> lists the allowed values for <c>type == "enum"</c>.</summary>
 public record ExposeEntry(
     string Type, string Property, int Access,
     string? ValueOn = null, string? ValueOff = null,
-    int? ValueMin = null, int? ValueMax = null, string? Unit = null);
+    int? ValueMin = null, int? ValueMax = null, string? Unit = null,
+    IReadOnlyList<string>? Values = null);
 
 /// <summary>A <c>bridge/devices</c> entry — the discovery contract.</summary>
 public record DeviceDescriptor(

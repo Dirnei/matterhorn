@@ -215,5 +215,6 @@ public sealed class MatterhornController(GatewayRef gateway, Matterhorn.Groups.G
         Value_min = e.ValueMin,
         Value_max = e.ValueMax,
         Unit = e.Unit,
+        Values = e.Values?.ToList(),
     };
 }
