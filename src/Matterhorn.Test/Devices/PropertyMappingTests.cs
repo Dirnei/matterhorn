@@ -158,4 +158,16 @@ public class PropertyMappingTests
         var props = PropertyMapping.Map(new[] { R(MatterClusters.ColorControl, 4, "26214") });
         Assert.Equal(0.4, Assert.IsType<double>(props["color_y"]), 2);
     }
+
+    [Fact]
+    public void Skips_reading_whose_convert_throws_but_keeps_others_in_batch()
+    {
+        var props = PropertyMapping.Map(new[]
+        {
+            R(MatterClusters.ElectricalEnergyMeasurement, 1, "{\"energy\":123}"),
+            R(MatterClusters.OnOff, 0, "true"),
+        });
+        Assert.Equal("ON", props["state"]);
+        Assert.False(props.ContainsKey("energy"));
+    }
 }

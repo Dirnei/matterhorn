@@ -62,7 +62,14 @@ public static class PropertyMapping
         {
             var rule = Array.Find(Rules, x => x.Cluster == r.ClusterId && x.Attr == r.AttributeId);
             if (rule is null) continue;
-            result[rule.Property] = rule.Convert(r.Value);
+            try
+            {
+                result[rule.Property] = rule.Convert(r.Value);
+            }
+            catch (Exception)
+            {
+                // Malformed/unexpected value shape for this one reading — skip it, keep the rest of the batch.
+            }
         }
         return result;
     }
