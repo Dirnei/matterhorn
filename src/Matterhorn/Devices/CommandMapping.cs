@@ -14,7 +14,7 @@ public static class CommandMapping
 
     private static readonly Handler[] Handlers =
     [
-        State, Brightness, ColorTemp, ColorHueSat,
+        State, Brightness, ColorTemp, ColorHueSat, CoverPosition,
     ];
 
     public static IReadOnlyList<IDeviceWrite> Map(IReadOnlyDictionary<string, JsonElement> payload)
@@ -36,6 +36,9 @@ public static class CommandMapping
             case "ON": w.Add(new CommandSpec(MatterClusters.OnOff, "On", NoArgs)); break;
             case "OFF": w.Add(new CommandSpec(MatterClusters.OnOff, "Off", NoArgs)); break;
             case "TOGGLE": w.Add(new CommandSpec(MatterClusters.OnOff, "Toggle", NoArgs)); break;
+            case "OPEN": w.Add(new CommandSpec(MatterClusters.WindowCovering, "UpOrOpen", NoArgs)); break;
+            case "CLOSE": w.Add(new CommandSpec(MatterClusters.WindowCovering, "DownOrClose", NoArgs)); break;
+            case "STOP": w.Add(new CommandSpec(MatterClusters.WindowCovering, "StopMotion", NoArgs)); break;
         }
     }
 
@@ -66,5 +69,12 @@ public static class CommandMapping
         else if (hasSat)
             w.Add(new CommandSpec(MatterClusters.ColorControl, "MoveToSaturation",
                 Args(("saturation", sat.GetInt32()))));
+    }
+
+    private static void CoverPosition(IReadOnlyDictionary<string, JsonElement> p, List<IDeviceWrite> w)
+    {
+        if (!p.TryGetValue("position", out var v)) return;
+        w.Add(new CommandSpec(MatterClusters.WindowCovering, "GoToLiftPercentage",
+            Args(("liftPercentageValue", 100 - v.GetInt32()))));
     }
 }

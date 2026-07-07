@@ -63,4 +63,17 @@ public class ExposesBuilderTests
         Assert.Contains(exposes, x => x.Property == "voltage" && x.Unit == "V");
         Assert.Contains(exposes, x => x.Property == "current" && x.Unit == "A");
     }
+
+    [Fact]
+    public void Window_covering_exposes_state_enum_and_position()
+    {
+        var exposes = ExposesBuilder.Build(new[] { MatterClusters.WindowCovering }, 0);
+        var state = Assert.Single(exposes, x => x.Property == "state");
+        Assert.Equal("enum", state.Type);
+        Assert.Equal(new[] { "OPEN", "CLOSE", "STOP" }, state.Values);
+        Assert.True((state.Access & 2) != 0);   // settable
+        var pos = Assert.Single(exposes, x => x.Property == "position");
+        Assert.Equal(0, pos.ValueMin);
+        Assert.Equal(100, pos.ValueMax);
+    }
 }

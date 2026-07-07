@@ -84,4 +84,28 @@ public class CommandMappingTests
         Assert.Equal("MoveToSaturation", c.CommandName);
         Assert.Equal(77, Assert.IsType<int>(c.Payload["saturation"]));
     }
+
+    [Fact]
+    public void State_OPEN_maps_to_WindowCovering_UpOrOpen()
+    {
+        var c = Cmd(Assert.Single(CommandMapping.Map(Payload("""{"state":"OPEN"}"""))));
+        Assert.Equal(MatterClusters.WindowCovering, c.ClusterId);
+        Assert.Equal("UpOrOpen", c.CommandName);
+    }
+
+    [Fact]
+    public void State_STOP_maps_to_WindowCovering_StopMotion()
+    {
+        var c = Cmd(Assert.Single(CommandMapping.Map(Payload("""{"state":"STOP"}"""))));
+        Assert.Equal("StopMotion", c.CommandName);
+    }
+
+    [Fact]
+    public void Position_maps_to_GoToLiftPercentage_inverted()
+    {
+        var c = Cmd(Assert.Single(CommandMapping.Map(Payload("""{"position":70}"""))));
+        Assert.Equal(MatterClusters.WindowCovering, c.ClusterId);
+        Assert.Equal("GoToLiftPercentage", c.CommandName);
+        Assert.Equal(30, Assert.IsType<int>(c.Payload["liftPercentageValue"]));
+    }
 }

@@ -67,6 +67,11 @@ public static class ExposesBuilder
         }
         if (has.Contains(MatterClusters.ElectricalEnergyMeasurement))
             list.Add(new("numeric", "energy", Published, Unit: "kWh"));
+        if (has.Contains(MatterClusters.WindowCovering))
+        {
+            list.Add(new("enum", "state", Set, Values: new[] { "OPEN", "CLOSE", "STOP" }));
+            list.Add(new("numeric", "position", All, ValueMin: 0, ValueMax: 100, Unit: "%"));
+        }
         return list;
     }
 }

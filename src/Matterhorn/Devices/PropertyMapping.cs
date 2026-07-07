@@ -40,6 +40,7 @@ public static class PropertyMapping
         new(MatterClusters.ElectricalPowerMeasurement, 5, "current", v => v.GetInt64() / 1000.0),
         new(MatterClusters.ElectricalEnergyMeasurement, 1, "energy", v => v.GetInt64() / 1_000_000.0),
         new(MatterClusters.PowerSource, 14, "battery_low", v => v.GetInt32() != 0),
+        new(MatterClusters.WindowCovering, 8, "position", v => 100 - v.GetInt32()),
     ];
 
     public static IReadOnlyDictionary<string, object?> Map(IEnumerable<AttributeReading> readings)

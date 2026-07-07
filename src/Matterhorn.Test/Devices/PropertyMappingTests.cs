@@ -93,4 +93,12 @@ public class PropertyMappingTests
         var props = PropertyMapping.Map(new[] { R(MatterClusters.PowerSource, 14, "1") });
         Assert.True(Assert.IsType<bool>(props["battery_low"]));
     }
+
+    [Fact]
+    public void Maps_cover_lift_percent_inverted_to_position()
+    {
+        // Matter 30% closed-from-open -> Z2M position 70 (open-ness).
+        var props = PropertyMapping.Map(new[] { R(MatterClusters.WindowCovering, 8, "30") });
+        Assert.Equal(70, Assert.IsType<int>(props["position"]));
+    }
 }
