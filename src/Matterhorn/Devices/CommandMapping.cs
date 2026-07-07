@@ -47,8 +47,10 @@ public static class CommandMapping
     private static void Brightness(IReadOnlyDictionary<string, JsonElement> p, List<IDeviceWrite> w)
     {
         if (!p.TryGetValue("brightness", out var v)) return;
-        w.Add(new CommandSpec(MatterClusters.LevelControl, "MoveToLevelWithOnOff",
-            Args(("level", v.GetInt32()))));
+        var args = new Dictionary<string, object?> { ["level"] = v.GetInt32() };
+        if (p.TryGetValue("transition", out var t))
+            args["transitionTime"] = (int)Math.Round(t.GetDouble() * 10);
+        w.Add(new CommandSpec(MatterClusters.LevelControl, "MoveToLevelWithOnOff", args));
     }
 
     private static void ColorTemp(IReadOnlyDictionary<string, JsonElement> p, List<IDeviceWrite> w)

@@ -37,6 +37,22 @@ public class CommandMappingTests
     }
 
     [Fact]
+    public void Brightness_with_transition_sets_transitionTime_tenths()
+    {
+        var c = Cmd(Assert.Single(CommandMapping.Map(Payload("""{"brightness":100,"transition":2}"""))));
+        Assert.Equal("MoveToLevelWithOnOff", c.CommandName);
+        Assert.Equal(100, Assert.IsType<int>(c.Payload["level"]));
+        Assert.Equal(20, Assert.IsType<int>(c.Payload["transitionTime"]));   // 2s -> 20 (0.1s units)
+    }
+
+    [Fact]
+    public void Brightness_without_transition_still_single_arg()
+    {
+        var c = Cmd(Assert.Single(CommandMapping.Map(Payload("""{"brightness":100}"""))));
+        Assert.False(c.Payload.ContainsKey("transitionTime"));
+    }
+
+    [Fact]
     public void Color_temp_maps_to_MoveToColorTemperature_mireds()
     {
         var c = Cmd(Assert.Single(CommandMapping.Map(Payload("""{"color_temp":370}"""))));
