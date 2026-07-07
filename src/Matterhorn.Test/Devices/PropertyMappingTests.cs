@@ -115,4 +115,18 @@ public class PropertyMappingTests
         var props = PropertyMapping.Map(new[] { R(MatterClusters.DoorLock, 0, "2") });
         Assert.Equal("UNLOCK", props["state"]);
     }
+
+    [Fact]
+    public void Maps_thermostat_local_temperature_hundredths_to_celsius()
+    {
+        var props = PropertyMapping.Map(new[] { R(MatterClusters.Thermostat, 0, "2150") });
+        Assert.Equal(21.5, Assert.IsType<double>(props["local_temperature"]), 2);
+    }
+
+    [Fact]
+    public void Maps_thermostat_system_mode_heat()
+    {
+        var props = PropertyMapping.Map(new[] { R(MatterClusters.Thermostat, 0x1C, "4") });
+        Assert.Equal("heat", props["system_mode"]);
+    }
 }

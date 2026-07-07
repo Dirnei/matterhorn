@@ -10,6 +10,7 @@ public class CommandMappingTests
         JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json)!;
 
     private static CommandSpec Cmd(IDeviceWrite w) => Assert.IsType<CommandSpec>(w);
+    private static AttributeWriteSpec Attr(IDeviceWrite w) => Assert.IsType<AttributeWriteSpec>(w);
 
     [Fact]
     public void State_ON_maps_to_OnOff_On()
@@ -122,5 +123,28 @@ public class CommandMappingTests
     {
         var c = Cmd(Assert.Single(CommandMapping.Map(Payload("""{"state":"UNLOCK"}"""))));
         Assert.Equal("UnlockDoor", c.CommandName);
+    }
+
+    [Fact]
+    public void Heating_setpoint_maps_to_attribute_write_hundredths()
+    {
+        var a = Attr(Assert.Single(CommandMapping.Map(Payload("""{"occupied_heating_setpoint":21.5}"""))));
+        Assert.Equal(MatterClusters.Thermostat, a.ClusterId);
+        Assert.Equal(0x12u, a.AttributeId);
+        Assert.Equal(2150, Assert.IsType<int>(a.Value));
+    }
+
+    [Fact]
+    public void System_mode_heat_maps_to_attribute_write_enum()
+    {
+        var a = Attr(Assert.Single(CommandMapping.Map(Payload("""{"system_mode":"heat"}"""))));
+        Assert.Equal(0x1Cu, a.AttributeId);
+        Assert.Equal(4, Assert.IsType<int>(a.Value));
+    }
+
+    [Fact]
+    public void Unrecognized_system_mode_emits_no_write()
+    {
+        Assert.Empty(CommandMapping.Map(Payload("""{"system_mode":"garbage"}""")));
     }
 }

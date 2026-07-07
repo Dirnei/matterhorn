@@ -86,4 +86,14 @@ public class ExposesBuilderTests
         Assert.Equal(new[] { "LOCK", "UNLOCK" }, state.Values);
         Assert.Equal(7, state.Access);   // All
     }
+
+    [Fact]
+    public void Thermostat_exposes_temp_setpoints_and_mode()
+    {
+        var exposes = ExposesBuilder.Build(new[] { MatterClusters.Thermostat }, 0);
+        Assert.Contains(exposes, x => x.Property == "local_temperature" && x.Access == 1);
+        Assert.Contains(exposes, x => x.Property == "occupied_heating_setpoint" && (x.Access & 2) != 0);
+        var mode = Assert.Single(exposes, x => x.Property == "system_mode");
+        Assert.Equal(new[] { "off", "auto", "cool", "heat" }, mode.Values);
+    }
 }

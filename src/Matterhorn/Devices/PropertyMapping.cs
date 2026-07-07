@@ -43,6 +43,11 @@ public static class PropertyMapping
         new(MatterClusters.WindowCovering, 8, "position", v => 100 - v.GetInt32()),
         new(MatterClusters.DoorLock, 0, "state",
             v => v.GetInt32() switch { 1 => "LOCK", 2 => "UNLOCK", _ => "UNKNOWN" }),
+        new(MatterClusters.Thermostat, 0x00, "local_temperature", v => v.GetInt32() / 100.0),
+        new(MatterClusters.Thermostat, 0x12, "occupied_heating_setpoint", v => v.GetInt32() / 100.0),
+        new(MatterClusters.Thermostat, 0x11, "occupied_cooling_setpoint", v => v.GetInt32() / 100.0),
+        new(MatterClusters.Thermostat, 0x1C, "system_mode",
+            v => v.GetInt32() switch { 0 => "off", 1 => "auto", 3 => "cool", 4 => "heat", _ => "unknown" }),
     ];
 
     public static IReadOnlyDictionary<string, object?> Map(IEnumerable<AttributeReading> readings)

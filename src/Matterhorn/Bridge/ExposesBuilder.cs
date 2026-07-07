@@ -74,6 +74,13 @@ public static class ExposesBuilder
         }
         if (has.Contains(MatterClusters.DoorLock))
             list.Add(new("enum", "state", All, Values: new[] { "LOCK", "UNLOCK" }));
+        if (has.Contains(MatterClusters.Thermostat))
+        {
+            list.Add(new("numeric", "local_temperature", Published, Unit: "°C"));
+            list.Add(new("numeric", "occupied_heating_setpoint", All, ValueMin: 5, ValueMax: 35, Unit: "°C"));
+            list.Add(new("numeric", "occupied_cooling_setpoint", All, ValueMin: 5, ValueMax: 35, Unit: "°C"));
+            list.Add(new("enum", "system_mode", All, Values: new[] { "off", "auto", "cool", "heat" }));
+        }
         return list;
     }
 }
