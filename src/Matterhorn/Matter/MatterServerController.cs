@@ -48,8 +48,11 @@ public sealed class MatterServerController(string wsUrl) : IMatterController
                 {
                     if (reply.MessageId == listenId)
                         foreach (var e in MatterServerProtocol.ParseNodeList(frame)) yield return e; // initial snapshot
-                    else
-                        _pending.Complete(reply);
+                    // A fire-and-forget command (device_command / write_attribute) has no registered waiter,
+                    // so its reply lands here unclaimed. Surface an error the controller reported for one of
+                    // those instead of dropping it silently — otherwise a rejected command looks like success.
+                    else if (!_pending.Complete(reply) && reply.Error is not null)
+                        Console.Error.WriteLine($"[matter-server] command {reply.MessageId} rejected: {reply.Error}");
                 }
                 else
                     foreach (var e in MatterServerProtocol.ParseIncoming(frame))
