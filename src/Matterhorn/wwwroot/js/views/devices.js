@@ -6,6 +6,7 @@ import * as store from '../store.js';
 let grid = null, emptyEl = null;
 let mounted = false;
 const pickers = new Map();   // friendly_name -> { picker, dragging }
+const expanded = new Set();  // friendly_names whose controls are expanded (survives re-render; cards collapse by default)
 const HSMAX = 254;           // Matter hue/saturation max
 
 async function patch(name, body){
@@ -31,13 +32,17 @@ function startRename(name){
       if (r.status===409) toast('That name is already taken');
       else if (r.status===400) toast('That name can’t be used');
       else if (!r.ok) toast('Rename failed');
-      else toast('Renamed');
+      else { if (expanded.delete(name)) expanded.add(to); toast('Renamed'); }   // keep expand state under the new name
     } catch(e){ if(e.message!=='401') toast('Rename failed'); }
   }, 'New device name');
 }
 
+const hasIdentify = name => !!store.devices.get(name)?.exposes?.some(e=>e.property==='identify');
+
 const menu = kebabMenu([
   { label:'Rename', icon: icon.rename, onClick: name => startRename(name) },
+  { label:'Identify', icon: icon.identify, show: hasIdentify,
+    onClick: name => { patch(name,{identify:10}); toast('Blinking…'); } },
   { label:'Unpair…', icon: icon.trash, danger:true, onClick: (name, origin) => unpairModal.open(origin, name) },
 ]);
 
@@ -46,7 +51,7 @@ async function doUnpair(name){
     const r = await api('/api/devices/'+encodeURIComponent(name), { method:'DELETE' });
     if (r.status===404) toast('Device not found');
     else if (!r.ok) toast('Unpair failed');
-    else toast('Unpairing…');   // the card disappears when the node_removed-driven SSE 'devices' refresh arrives
+    else { expanded.delete(name); toast('Unpairing…'); }   // the card disappears when the node_removed-driven SSE 'devices' refresh arrives
   } catch(e){ if(e.message!=='401') toast('Unpair failed'); }
 }
 
@@ -74,29 +79,54 @@ function render(){
 function station(d){
   const el=document.createElement('section');
   el.className='station'; el.id='dev-'+cssId(d.friendly_name);
+  const isOpen=expanded.has(d.friendly_name);
+  if (isOpen) el.classList.add('open');
   const hasColor = d.exposes.some(e=>e.property==='hue') && d.exposes.some(e=>e.property==='saturation');
+  // The on/off toggle lives in the (always-visible) header so lights can be switched while collapsed;
+  // everything else lives in the collapsible body.
+  const headerState = d.exposes.find(e=>e.property==='state' && e.type==='binary' && (e.access&2));
   const skip = new Set(hasColor ? ['hue','saturation'] : []);
   skip.add('transition');                                   // modifier, not a control
-  const settable = d.exposes.filter(e=>(e.access&2) && !skip.has(e.property));
+  skip.add('identify');                                     // moved to the kebab menu
+  const settable = d.exposes.filter(e=>(e.access&2) && !skip.has(e.property) && e!==headerState);
   const readonly = d.exposes.filter(e=>!(e.access&2) && !skip.has(e.property));
   el.innerHTML =
-    `<div class="st-head">
-       <div><div class="name">${esc(d.friendly_name)}</div>
+    `<div class="st-head" role="button" tabindex="0" aria-expanded="${isOpen}">
+       <div class="st-id"><div class="name">${esc(d.friendly_name)}</div>
          <div class="coords">${esc(d.device_type)} · node ${esc(d.node_id)} / ep ${esc(d.endpoint)}${d.transport?`<span class="pill">${esc(d.transport)}</span>`:''}</div></div>
        <div class="st-tools">
          <span class="bench ${d.reachable?'up':''}" title="${d.reachable?'reachable':'unreachable'}"></span>
+         ${headerState?`<span class="switch"><input type="checkbox" data-prop="state" aria-label="power"><span class="slot"></span><span class="knob"></span></span>`:''}
          <button class="kebab" aria-label="Device actions" aria-haspopup="true" aria-expanded="false">${icon.kebab}</button>
+         <span class="st-chevron" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
        </div>
-     </div><div class="rows"></div>`;
+     </div><div class="rows expand"${isOpen?'':' hidden'}></div>`;
   const rows=el.querySelector('.rows');
+  const head=el.querySelector('.st-head');
+  const tools=el.querySelector('.st-tools');
+  tools.addEventListener('click', ev=>ev.stopPropagation());   // toggle + kebab never collapse/expand the card
+  head.addEventListener('click', ()=>toggleExpand(d.friendly_name, el, head));
+  head.addEventListener('keydown', ev=>{ if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); toggleExpand(d.friendly_name, el, head); } });
   el.querySelector('.kebab').addEventListener('click', ev=>{
     ev.stopPropagation();
     menu.open(ev.currentTarget, d.friendly_name);
   });
+  if (headerState)
+    el.querySelector('.st-tools input[data-prop="state"]').addEventListener('change', ev=>patch(d.friendly_name,{state:ev.target.checked?'ON':'OFF'}));
   for (const e of settable) rows.appendChild(control(d.friendly_name,e));
   for (const e of readonly) rows.appendChild(readoutRow(e));
   if (hasColor) rows.prepend(colorControl(d.friendly_name));
   return el;
+}
+
+// Expanded/collapsed state is kept in module-level `expanded` (not per-DOM-node) so it survives the
+// full grid rebuild that every SSE refresh triggers.
+function toggleExpand(name, el, head){
+  const nowOpen=!expanded.has(name);
+  if (nowOpen) expanded.add(name); else expanded.delete(name);
+  el.classList.toggle('open', nowOpen);
+  head.setAttribute('aria-expanded', String(nowOpen));
+  el.querySelector('.rows').hidden = !nowOpen;
 }
 
 function colorControl(name){
@@ -128,12 +158,7 @@ function colorControl(name){
 
 function control(name,e){
   const wrap=document.createElement('div');
-  if (e.property==='identify'){
-    wrap.className='row';
-    wrap.innerHTML=`<span class="legend">identify</span><button class="btn-ident">blink</button>`;
-    wrap.querySelector('button').addEventListener('click',()=>patch(name,{identify:10}));
-    return wrap;
-  } else if (e.type==='enum'){
+  if (e.type==='enum'){
     wrap.className='ctl';
     const label=esc(e.property.replace('_',' '));
     const btns=(e.values||[]).map(v=>`<button class="seg" data-prop="${e.property}" data-val="${esc(v)}">${esc(v.toLowerCase())}</button>`).join('');
@@ -148,13 +173,16 @@ function control(name,e){
   } else {
     wrap.className='ctl';
     const min=e.value_min??0, max=e.value_max??254;
+    const frac=(max-min)<=1;                       // fractional range (e.g. color_x/color_y 0–1) needs a fine step
+    const step=frac?'any':'1';
+    const round=frac?(v=>Math.round(v*1000)/1000):Math.round;
     const label=esc(e.property.replace('_',' '));
     wrap.innerHTML=`<div class="row"><span class="legend">${label}</span>
-        <input class="entry" type="number" inputmode="numeric" min="${min}" max="${max}" data-prop="${e.property}-val" aria-label="${label} value"></div>
-      <input type="range" min="${min}" max="${max}" data-prop="${e.property}">`;
+        <input class="entry" type="number" inputmode="${frac?'decimal':'numeric'}" step="${step}" min="${min}" max="${max}" data-prop="${e.property}-val" aria-label="${label} value"></div>
+      <input type="range" step="${step}" min="${min}" max="${max}" data-prop="${e.property}">`;
     const s=wrap.querySelector('input[type=range]');
     const box=wrap.querySelector('input[type=number]');
-    const clamp=v=>Math.min(max,Math.max(min,Math.round(v)));
+    const clamp=v=>Math.min(max,Math.max(min,round(v)));
     // Suppress live updates only while actively dragging — a range input keeps focus after you
     // release it, so guarding on focus alone would freeze the slider until you clicked elsewhere.
     const startDrag=()=>s.dataset.dragging='1', endDrag=()=>delete s.dataset.dragging;

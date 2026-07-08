@@ -14,6 +14,7 @@ export const icon = {
   rename: '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M4 20l.8-3.9L16.2 4.7a1.5 1.5 0 0 1 2.1 0l1 1a1.5 1.5 0 0 1 0 2.1L7.9 19.2 4 20Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/><path d="M14.3 6.6l3.1 3.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
   trash: '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 7h14M9.5 7V5.2a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V7M10 11v6M14 11v6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 7l1 12.2a1 1 0 0 0 1 .8h7a1 1 0 0 0 1-.8L17.5 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
   close: '<svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  identify: '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><circle cx="12" cy="12" r="2.4" fill="currentColor"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4M9 9a4.2 4.2 0 0 0 0 6M15 9a4.2 4.2 0 0 1 0 6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
 };
 
 // ---- kebab menu: one body-level dropdown per view, retargeted to whichever row's kebab was
@@ -28,16 +29,24 @@ export function kebabMenu(items){
   document.body.appendChild(menu);
   let anchor = null, subject = null;
 
+  const visibleButtons = () => [...menu.querySelectorAll('button')].filter(b => b.style.display !== 'none');
+
   function open(anchorBtn, subj){
     if (menu.classList.contains('open') && anchor===anchorBtn){ close(true); return; }  // same kebab toggles closed
     anchor?.setAttribute('aria-expanded','false');      // reset a previously-open kebab when retargeting
     anchor = anchorBtn; subject = subj;
+    // Per-open item visibility: an item with a `show(subject)` predicate hides when it returns false
+    // (e.g. "Identify" only for devices that expose the Identify cluster).
+    menu.querySelectorAll('button').forEach(b => {
+      const it = items[Number(b.dataset.i)];
+      b.style.display = (it.show && !it.show(subj)) ? 'none' : '';
+    });
     anchorBtn.setAttribute('aria-expanded','true');
     menu.classList.add('open');                         // display first so offsetWidth is measurable
     const r = anchorBtn.getBoundingClientRect();
     menu.style.top  = (window.scrollY + r.bottom + 4) + 'px';
     menu.style.left = (window.scrollX + r.right - menu.offsetWidth) + 'px';
-    menu.querySelector('button').focus();               // move focus into the menu (keyboard a11y)
+    visibleButtons()[0]?.focus();                       // move focus into the menu (keyboard a11y)
   }
   function close(returnFocus){
     if (!menu.classList.contains('open')) return;
@@ -51,7 +60,7 @@ export function kebabMenu(items){
     items[Number(i)].onClick(subj, origin);
   });
   menu.addEventListener('keydown', e=>{                  // arrow-key navigation within the open menu
-    const btns = [...menu.querySelectorAll('button')];
+    const btns = visibleButtons();
     const i = btns.indexOf(document.activeElement);
     if (e.key==='ArrowDown'){ e.preventDefault(); btns[(i+1)%btns.length].focus(); }
     else if (e.key==='ArrowUp'){ e.preventDefault(); btns[(i-1+btns.length)%btns.length].focus(); }
