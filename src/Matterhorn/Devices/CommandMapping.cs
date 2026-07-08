@@ -123,6 +123,11 @@ public static class CommandMapping
     private static void IdentifyCmd(IReadOnlyDictionary<string, JsonElement> p, List<IDeviceWrite> w)
     {
         if (!p.TryGetValue("identify", out var v)) return;
+        // Enter identify mode (spec-compliant) AND fire a visible Blink effect: many bulbs don't
+        // visibly react to plain Identify, but do to TriggerEffect(Blink). Both are fire-and-forget,
+        // so a device that supports only one still reacts (the other reply is a harmless logged error).
         w.Add(new CommandSpec(MatterClusters.Identify, "Identify", Args(("identifyTime", v.GetInt32()))));
+        w.Add(new CommandSpec(MatterClusters.Identify, "TriggerEffect",
+            Args(("effectIdentifier", 0), ("effectVariant", 0))));   // 0 = Blink, 0 = Default variant
     }
 }

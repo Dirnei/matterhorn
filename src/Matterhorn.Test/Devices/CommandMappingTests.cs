@@ -198,12 +198,18 @@ public class CommandMappingTests
     }
 
     [Fact]
-    public void Identify_seconds_maps_to_Identify_command()
+    public void Identify_seconds_maps_to_Identify_then_TriggerEffect_blink()
     {
-        var c = Cmd(Assert.Single(CommandMapping.Map(Payload("""{"identify":5}"""))));
-        Assert.Equal(MatterClusters.Identify, c.ClusterId);
-        Assert.Equal("Identify", c.CommandName);
-        Assert.Equal(5, Assert.IsType<int>(c.Payload["identifyTime"]));
+        var cmds = CommandMapping.Map(Payload("""{"identify":5}"""));
+        Assert.Equal(2, cmds.Count);
+        var identify = Cmd(cmds[0]);
+        Assert.Equal(MatterClusters.Identify, identify.ClusterId);
+        Assert.Equal("Identify", identify.CommandName);
+        Assert.Equal(5, Assert.IsType<int>(identify.Payload["identifyTime"]));
+        var effect = Cmd(cmds[1]);
+        Assert.Equal(MatterClusters.Identify, effect.ClusterId);
+        Assert.Equal("TriggerEffect", effect.CommandName);
+        Assert.Equal(0, Assert.IsType<int>(effect.Payload["effectIdentifier"]));   // Blink
     }
 
     [Fact]
