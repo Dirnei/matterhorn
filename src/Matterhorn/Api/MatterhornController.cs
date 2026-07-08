@@ -179,14 +179,15 @@ public sealed class MatterhornController(GatewayRef gateway, Matterhorn.Groups.G
         };
     }
 
+    // SetRequest is a free-form object (the same open vocabulary as the MQTT /set payload); its
+    // properties land in the JsonExtensionData catch-all. Pass them straight through to the gateway so
+    // REST and MQTT accept exactly the same settable keys (state, brightness, position, identify, …).
     private static Dictionary<string, JsonElement> SetRequestToPayload(Gen.SetRequest body)
     {
         var payload = new Dictionary<string, JsonElement>();
-        if (body.State.HasValue) payload["state"] = JsonSerializer.SerializeToElement(body.State.Value.ToString());
-        if (body.Brightness.HasValue) payload["brightness"] = JsonSerializer.SerializeToElement(body.Brightness.Value);
-        if (body.Color_temp.HasValue) payload["color_temp"] = JsonSerializer.SerializeToElement(body.Color_temp.Value);
-        if (body.Hue.HasValue) payload["hue"] = JsonSerializer.SerializeToElement(body.Hue.Value);
-        if (body.Saturation.HasValue) payload["saturation"] = JsonSerializer.SerializeToElement(body.Saturation.Value);
+        if (body.AdditionalProperties is null) return payload;
+        foreach (var (key, value) in body.AdditionalProperties)
+            payload[key] = value is JsonElement je ? je : JsonSerializer.SerializeToElement(value);
         return payload;
     }
 

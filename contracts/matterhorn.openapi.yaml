@@ -386,16 +386,13 @@ components:
 
     SetRequest:
       type: object
-      description: One or more settable properties; omitted properties are left unchanged.
-      properties:
-        state:
-          type: string
-          nullable: true
-          enum: [ON, OFF, TOGGLE]
-        brightness: { type: integer, format: int32, minimum: 0, maximum: 254, nullable: true }
-        color_temp: { type: integer, format: int32, minimum: 147, maximum: 500, nullable: true }
-        hue: { type: integer, format: int32, minimum: 0, maximum: 254, nullable: true }
-        saturation: { type: integer, format: int32, minimum: 0, maximum: 254, nullable: true }
+      additionalProperties: true
+      description: >-
+        One or more settable properties; omitted properties are left unchanged. Free-form: the same
+        open vocabulary as the MQTT `<base>/<name>/set` payload (e.g. state, brightness, color_temp,
+        hue, saturation, color_x, color_y, position, fan_mode, percent, system_mode,
+        occupied_heating_setpoint, occupied_cooling_setpoint, transition, identify) — the accepted
+        keys are whatever the device's `exposes` advertise as settable.
 
     DeviceState:
       type: object

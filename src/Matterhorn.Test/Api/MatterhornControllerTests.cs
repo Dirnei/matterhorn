@@ -124,6 +124,30 @@ public class MatterhornControllerTests : TestKit, IClassFixture<WebApplicationFa
     }
 
     [Fact]
+    public async Task Patch_device_forwards_new_settable_properties()
+    {
+        var probe = CreateTestProbe();
+        var client = ClientWithGateway(probe.Ref);
+
+        // identify, cover position, a cover/lock `state` value, thermostat mode — none of these existed
+        // on the old typed SetRequest; the free-form body must pass them all straight through to the gateway.
+        var task = client.PatchAsJsonAsync("/api/devices/lamp", new Dictionary<string, object>
+        {
+            ["identify"] = 10,
+            ["position"] = 70,
+            ["state"] = "OPEN",
+            ["system_mode"] = "heat",
+        });
+
+        var msg = probe.ExpectMsg<SetDevice>();
+        Assert.Equal(10, msg.Payload["identify"].GetInt32());
+        Assert.Equal(70, msg.Payload["position"].GetInt32());
+        Assert.Equal("OPEN", msg.Payload["state"].GetString());
+        Assert.Equal("heat", msg.Payload["system_mode"].GetString());
+        Assert.Equal(HttpStatusCode.Accepted, (await task).StatusCode);
+    }
+
+    [Fact]
     public async Task Rename_device_returns_200_on_success()
     {
         var probe = CreateTestProbe();
