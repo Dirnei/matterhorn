@@ -17,6 +17,12 @@ public sealed class FakeMatterController : IMatterController
     public Func<string, ulong> OnCommission { get; set; } = _ => 1;
     public List<ulong> Removed { get; } = new();
 
+    /// <summary>Datasets handed to <see cref="SetThreadDataset"/>, in order.</summary>
+    public List<string> ThreadDatasets { get; } = new();
+
+    /// <summary>Every <see cref="Commission"/> call, so a test can assert on the network_only choice.</summary>
+    public List<(string SetupCode, bool NetworkOnly)> Commissions { get; } = new();
+
     /// <summary>When set, <see cref="Commission"/> returns this (still-pending) task instead of
     /// completing synchronously — lets a test hold a commission in flight to prove the gateway
     /// stays responsive while it runs.</summary>
@@ -76,7 +82,20 @@ public sealed class FakeMatterController : IMatterController
         return list;
     }
 
-    public Task<ulong> Commission(string setupCode, CancellationToken ct) =>
-        PendingCommission ?? Task.FromResult(OnCommission(setupCode));
+    /// <summary>When set, <see cref="SetThreadDataset"/> delegates to this — lets a test make the
+    /// push fail the way a controller rejecting the dataset would.</summary>
+    public Func<string, Task>? OnSetThreadDataset { get; set; }
+
+    public Task SetThreadDataset(string dataset, CancellationToken ct)
+    {
+        ThreadDatasets.Add(dataset);
+        return OnSetThreadDataset?.Invoke(dataset) ?? Task.CompletedTask;
+    }
+
+    public Task<ulong> Commission(string setupCode, bool networkOnly, CancellationToken ct)
+    {
+        Commissions.Add((setupCode, networkOnly));
+        return PendingCommission ?? Task.FromResult(OnCommission(setupCode));
+    }
     public Task RemoveNode(ulong nodeId, CancellationToken ct) { Removed.Add(nodeId); return Task.CompletedTask; }
 }

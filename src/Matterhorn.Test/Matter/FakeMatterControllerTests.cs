@@ -57,7 +57,8 @@ public class FakeMatterControllerTests
     public async Task Commission_uses_hook()
     {
         var fake = new FakeMatterController { OnCommission = _ => 42 };
-        Assert.Equal(42ul, await fake.Commission("MT:XXX", default));
+        Assert.Equal(42ul, await fake.Commission("MT:XXX", networkOnly: true, default));
+        Assert.Equal(("MT:XXX", true), Assert.Single(fake.Commissions));
     }
 
     [Fact]

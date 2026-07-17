@@ -44,15 +44,29 @@ function commOutcome(text, ok){
   const el=commModal.querySelector('#commMsg'); el.style.opacity=1; el.textContent=text;
   setTimeout(closeComm, ok?1600:3200);
 }
+// Whether a brand-new Thread device could be onboarded, per /api/bridge/info. Only ever shown after
+// a failure: it's the likeliest cause of one, but pure noise while a Wi-Fi bulb joins happily.
+let thread=null;
+async function loadThreadStatus(){
+  try { const r=await api('/api/bridge/info'); if(r.ok) thread=(await r.json()).thread; }
+  catch { /* the hint is a nicety — never let it break commissioning */ }
+}
+
 // Close the modal on the real outcome from the Station Log stream.
 function commOnLog(m){
   if(!commModal.classList.contains('open')) return;
   if(m.kind==='joined') commOutcome('✓ '+(m.device||'device')+' joined the fabric', true);
-  else if(m.kind==='commission_failed') commOutcome('✗ '+(m.msg||'commissioning failed'), false);
+  else if(m.kind==='commission_failed'){
+    let text='✗ '+(m.msg||'commissioning failed');
+    if(thread && !thread.available && thread.reason)
+      text+=' — if this is a brand-new Thread device, note that '+thread.reason;
+    commOutcome(text, false);
+  }
 }
 commModal.querySelector('.comm-hide').addEventListener('click',closeComm);
 
 export function mountCommission(){
+  loadThreadStatus();
   document.getElementById('commissionForm').addEventListener('submit',async ev=>{
     ev.preventDefault();
     const code=document.getElementById('code').value.trim(); if(!code) return;

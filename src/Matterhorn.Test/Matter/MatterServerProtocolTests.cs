@@ -59,18 +59,81 @@ public class MatterServerProtocolTests
         Assert.True(ac.Reading.Value.GetBoolean());
     }
 
-    [Fact]
-    public void CommissionWithCode_carries_code_and_forces_network_only()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void CommissionWithCode_carries_code_and_the_network_only_choice(bool networkOnly)
     {
-        var json = MatterServerProtocol.CommissionWithCode(9, "MT:ABC123");
+        var json = MatterServerProtocol.CommissionWithCode(9, "MT:ABC123", networkOnly);
         using var doc = JsonDocument.Parse(json);
         var args = doc.RootElement.GetProperty("args");
         Assert.Equal("commission_with_code", doc.RootElement.GetProperty("command").GetString());
         Assert.Equal("9", doc.RootElement.GetProperty("message_id").GetString());
         Assert.Equal("MT:ABC123", args.GetProperty("code").GetString());
-        // On-network commissioning: no Bluetooth radio on a software controller, and the multi-admin
-        // device is already on Wi-Fi, so we only need to join its fabric over IP.
-        Assert.True(args.GetProperty("network_only").GetBoolean());
+        // true restricts the controller to devices already on IP; false also lets it reach a
+        // factory-fresh device over BLE.
+        Assert.Equal(networkOnly, args.GetProperty("network_only").GetBoolean());
+    }
+
+    [Fact]
+    public void ServerInfo_frame_is_parsed_into_controller_info()
+    {
+        // Captured verbatim from the matter-server on the Pi: it is the first frame on connect and
+        // carries neither message_id nor event, so it lands in ParseIncoming.
+        const string frame = """
+        {
+          "fabric_id": 1,
+          "compressed_fabric_id": 11852578228450596537,
+          "schema_version": 11,
+          "min_supported_schema_version": 9,
+          "sdk_version": "2025.7.0",
+          "wifi_credentials_set": false,
+          "thread_credentials_set": false,
+          "bluetooth_enabled": false
+        }
+        """;
+
+        var info = Assert.IsType<ControllerInfo>(Assert.Single(MatterServerProtocol.ParseIncoming(frame)));
+
+        Assert.Equal("2025.7.0", info.SdkVersion);
+        Assert.Equal(11, info.SchemaVersion);
+        Assert.False(info.BluetoothEnabled);
+        Assert.False(info.ThreadCredentialsSet);
+    }
+
+    [Fact]
+    public void ServerInfo_reports_bluetooth_and_thread_when_enabled()
+    {
+        const string frame = """
+        {"schema_version": 11, "sdk_version": "1.0.0",
+         "thread_credentials_set": true, "bluetooth_enabled": true}
+        """;
+
+        var info = Assert.IsType<ControllerInfo>(Assert.Single(MatterServerProtocol.ParseIncoming(frame)));
+
+        Assert.True(info.BluetoothEnabled);
+        Assert.True(info.ThreadCredentialsSet);
+    }
+
+    [Fact]
+    public void A_node_event_is_not_mistaken_for_server_info()
+    {
+        const string frame = """
+        {"event": "node_removed", "data": 7}
+        """;
+        Assert.IsType<NodeRemoved>(Assert.Single(MatterServerProtocol.ParseIncoming(frame)));
+    }
+
+    [Fact]
+    public void SetThreadDataset_carries_the_dataset_verbatim()
+    {
+        // The dataset is an opaque hex TLV read off a border router — it must go through untouched.
+        const string dataset = "0e080000000000030001000300000f0510e5e4f21c05d33938c324eeed03255fca";
+        var json = MatterServerProtocol.SetThreadDataset(2, dataset);
+        using var doc = JsonDocument.Parse(json);
+        Assert.Equal("set_thread_dataset", doc.RootElement.GetProperty("command").GetString());
+        Assert.Equal("2", doc.RootElement.GetProperty("message_id").GetString());
+        Assert.Equal(dataset, doc.RootElement.GetProperty("args").GetProperty("dataset").GetString());
     }
 
     [Fact]

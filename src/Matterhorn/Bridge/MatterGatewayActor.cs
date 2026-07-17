@@ -22,7 +22,12 @@ public sealed class MatterGatewayActor : ReceiveActor
     private readonly IMqttPublisher _mqtt;
     private readonly MqttTopics _topics;
     private readonly INameStore _names;
+    private readonly IThreadDatasetSource _thread;
     private readonly Dictionary<(ulong, ushort), string> _overrides;
+    // Captured on the actor thread at construction: Akka's Context is thread-static and throws when
+    // touched from the off-actor tasks below, whereas publishing to the EventStream is thread-safe.
+    private readonly Akka.Event.EventStream _events;
+    private ControllerInfo? _controllerInfo;
 
     private sealed record Registered(string FriendlyName, EndpointInfo Info, IActorRef Actor, DeviceDescriptor Descriptor);
     // Self-addressed results of the off-actor controller calls, so the actor never blocks on them.
@@ -34,13 +39,17 @@ public sealed class MatterGatewayActor : ReceiveActor
     private IActorRef? _groups;
     private readonly HashSet<string> _groupNames = new();
 
-    public static Props Props(IMatterController controller, IMqttPublisher mqtt, MqttTopics topics, INameStore? names = null) =>
-        Akka.Actor.Props.Create(() => new MatterGatewayActor(controller, mqtt, topics, names));
+    public static Props Props(IMatterController controller, IMqttPublisher mqtt, MqttTopics topics,
+        INameStore? names = null, IThreadDatasetSource? thread = null) =>
+        Akka.Actor.Props.Create(() => new MatterGatewayActor(controller, mqtt, topics, names, thread));
 
-    public MatterGatewayActor(IMatterController controller, IMqttPublisher mqtt, MqttTopics topics, INameStore? names = null)
+    public MatterGatewayActor(IMatterController controller, IMqttPublisher mqtt, MqttTopics topics,
+        INameStore? names = null, IThreadDatasetSource? thread = null)
     {
         _controller = controller; _mqtt = mqtt; _topics = topics;
         _names = names ?? NullNameStore.Instance;
+        _thread = thread ?? new FixedThreadDatasetSource(ThreadCredentials.None);
+        _events = Context.System.EventStream;
         _overrides = new Dictionary<(ulong, ushort), string>(_names.Load());
         Context.System.EventStream.Subscribe(Self, typeof(Matterhorn.Groups.GroupNamesChanged));
 
@@ -78,6 +87,21 @@ public sealed class MatterGatewayActor : ReceiveActor
         {
             if (_byName.TryGetValue(g.FriendlyName, out var reg)) reg.Actor.Forward(new GetState());
             else Sender.Tell(new DeviceStateSnapshot(false, null));
+        });
+        Receive<ControllerInfo>(ci =>
+        {
+            _controllerInfo = ci;
+            Log(LogCategory.Raw, "server_info",
+                $"matter-server {ci.SdkVersion} · schema {ci.SchemaVersion} · bluetooth {(ci.BluetoothEnabled ? "enabled" : "disabled")}");
+        });
+        Receive<GetThreadStatus>(_ =>
+        {
+            // Capture actor state here, resolve off the actor: a border router we can't reach must
+            // not stall the gateway just because someone opened the dashboard.
+            var info = _controllerInfo;
+            _thread.Resolve(CancellationToken.None)
+                .ContinueWith(t => ThreadStatusOf(t.IsFaulted ? ThreadCredentials.None : t.Result, info))
+                .PipeTo(Sender);
         });
         Receive<CommissionRequest>(OnCommission);
         Receive<CommissionDone>(OnCommissionDone);
@@ -150,10 +174,37 @@ public sealed class MatterGatewayActor : ReceiveActor
     private void OnCommission(CommissionRequest req)
     {
         Log(LogCategory.Activity, "commission", "setup code accepted");
-        Log(LogCategory.Raw, "commission_with_code", "→ sent");
-        _controller.Commission(req.Code, CancellationToken.None).ContinueWith(t => t.IsFaulted
+        CommissionFlow(req.Code).ContinueWith(t => t.IsFaulted
             ? new CommissionDone(req.Transaction, null, t.Exception!.GetBaseException().Message)
             : new CommissionDone(req.Transaction, t.Result, null)).PipeTo(Self);
+    }
+
+    /// <summary>
+    /// Resolves Thread credentials and commissions. Both run off the actor.
+    /// <para>
+    /// The dataset is resolved here rather than on connect because the controller connection is an
+    /// event stream with no "connected" signal to hook; doing it lazily also means a slow border
+    /// router delays an operation that already takes 30-60s instead of blocking startup, and picks up
+    /// a border router that came up after Matterhorn did.
+    /// </para>
+    /// </summary>
+    private async Task<ulong> CommissionFlow(string code)
+    {
+        var thread = await _thread.Resolve(CancellationToken.None);
+        if (thread.Dataset is not null)
+        {
+            // Sent before every commission rather than once per connection: it is idempotent, costs
+            // one message against a 30-60s operation, and stays correct when the controller
+            // reconnects (which drops the credentials it was holding).
+            await _controller.SetThreadDataset(thread.Dataset, CancellationToken.None);
+            Log(LogCategory.Raw, "set_thread_dataset", $"→ sent ({thread.Source})");
+        }
+
+        // Without credentials we can only reach a device that is already on IP — which is every
+        // device Matterhorn could commission before Thread onboarding existed.
+        var networkOnly = !thread.Available;
+        Log(LogCategory.Raw, "commission_with_code", $"→ sent (network_only={networkOnly.ToString().ToLowerInvariant()})");
+        return await _controller.Commission(code, networkOnly, CancellationToken.None);
     }
 
     private void OnCommissionDone(CommissionDone done)
@@ -268,7 +319,26 @@ public sealed class MatterGatewayActor : ReceiveActor
     private void PublishEvent(string type, object data) =>
         _mqtt.Publish(_topics.BridgeEvent(), JsonSerializer.Serialize(new { type, data }));
 
+    /// <summary>
+    /// Can we onboard a brand-new Thread device right now? That needs both halves: credentials to
+    /// hand over, and a Bluetooth radio to hand them over on. Pure, so it can run off the actor.
+    /// </summary>
+    private static ThreadStatus ThreadStatusOf(ThreadCredentials creds, ControllerInfo? controller)
+    {
+        if (!creds.Available)
+            return new ThreadStatus(false, creds.Source, creds.BorderRouter, creds.Reason);
+
+        // Only claim Bluetooth is the problem when the controller actually told us so — before it
+        // connects we have no idea, and guessing would be worse than saying nothing.
+        if (controller is { BluetoothEnabled: false })
+            return new ThreadStatus(false, creds.Source, creds.BorderRouter,
+                "the Matter controller has Bluetooth turned off, and a brand-new Thread device can only be reached over Bluetooth");
+
+        return new ThreadStatus(true, creds.Source, creds.BorderRouter, null);
+    }
+
+    // Safe to call from the off-actor commission/remove tasks — see _events.
     private void Log(LogCategory category, string kind, string message,
                      string? device = null, LogLevel level = LogLevel.Info) =>
-        Context.System.EventStream.Publish(new LogEntry(DateTimeOffset.Now, category, kind, message, device, level));
+        _events.Publish(new LogEntry(DateTimeOffset.Now, category, kind, message, device, level));
 }

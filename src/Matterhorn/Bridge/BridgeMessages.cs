@@ -12,6 +12,15 @@ public record RenameRequest(string FromName, string ToName, string Transaction);
 /// <summary>Reply to a <see cref="RenameRequest"/>. Error is one of: invalid_name, not_found, name_taken.</summary>
 public record RenameResult(bool Ok, string? Error, string? NewName = null);
 public record GetDevices;
+
+/// <summary>Asks whether a brand-new Thread device could be commissioned right now; replied to with
+/// <see cref="ThreadStatus"/>.</summary>
+public record GetThreadStatus;
+
+/// <summary>Reply to <see cref="GetThreadStatus"/>. <paramref name="Reason"/> is plain language for
+/// the dashboard — the operator should not need to know what a Thread dataset is.</summary>
+/// <param name="Source">"otbr", "configured", or "none".</param>
+public record ThreadStatus(bool Available, string Source, string? BorderRouter, string? Reason);
 public record GetDeviceState(string FriendlyName);
 public record SetDevice(string FriendlyName, IReadOnlyDictionary<string, JsonElement> Payload);
 

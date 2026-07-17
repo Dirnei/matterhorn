@@ -68,8 +68,21 @@ public sealed class MatterhornController(GatewayRef gateway, Matterhorn.Groups.G
             Accepted((string?)null, new Gen.CommissionAccepted { Transaction = tx }));
     }
 
-    public override Task<ActionResult<Gen.BridgeInfo>> GetBridgeInfo() =>
-        Task.FromResult<ActionResult<Gen.BridgeInfo>>(new Gen.BridgeInfo { Service = "matterhorn" });
+    public override async Task<ActionResult<Gen.BridgeInfo>> GetBridgeInfo()
+    {
+        var thread = await Gw.Ask<Bridge.ThreadStatus>(new Bridge.GetThreadStatus(), Timeout);
+        return new Gen.BridgeInfo
+        {
+            Service = "matterhorn",
+            Thread = new Gen.ThreadStatus
+            {
+                Available = thread.Available,
+                Source = thread.Source,
+                Border_router = thread.BorderRouter,
+                Reason = thread.Reason,
+            },
+        };
+    }
 
     public override async Task<ActionResult<ICollection<Gen.Group>>> ListGroups()
     {

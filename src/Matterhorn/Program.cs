@@ -34,6 +34,10 @@ builder.Services.AddSingleton(cfg);
 builder.Services.AddSingleton(topics);
 builder.Services.AddSingleton(mqttClient);
 builder.Services.AddSingleton(controller);
+// Thread credentials for commissioning a device that isn't on a network yet. Read from the border
+// router's REST API when Thread:OtbrUrl is set, so nobody has to paste a dataset by hand.
+builder.Services.AddSingleton<IThreadDatasetSource>(new ThreadDatasetSource(cfg,
+    new HttpClient { Timeout = TimeSpan.FromSeconds(5) }));
 builder.Services.AddSingleton<INameStore>(new JsonNameStore(cfg.NamesFile));
 builder.Services.AddSingleton<IGroupStore>(new JsonGroupStore(cfg.GroupsFile));
 builder.Services.AddSingleton<ISceneStore>(new JsonSceneStore(cfg.ScenesFile));
@@ -52,7 +56,8 @@ builder.Services.AddAkka("matterhorn", (b, sp) => b
     {
         var publisher = sp.GetRequiredService<IMqttPublisher>();
         var names = sp.GetRequiredService<INameStore>();
-        var gw = system.ActorOf(MatterGatewayActor.Props(controller, publisher, topics, names), "gateway");
+        var gw = system.ActorOf(MatterGatewayActor.Props(controller, publisher, topics, names,
+            sp.GetRequiredService<IThreadDatasetSource>()), "gateway");
         registry.Register<MatterGatewayActor>(gw);
         var logBuffer = system.ActorOf(LogBufferActor.Props(), "logbuffer");
         registry.Register<LogBufferActor>(logBuffer);

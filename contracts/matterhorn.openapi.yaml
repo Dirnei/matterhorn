@@ -426,6 +426,27 @@ components:
       required: [service]
       properties:
         service: { type: string }
+        thread:
+          $ref: '#/components/schemas/ThreadStatus'
+
+    ThreadStatus:
+      type: object
+      description: >-
+        Whether a brand-new Thread device can be commissioned right now. Needs both Thread
+        credentials to hand the device and Bluetooth on the controller to hand them over with.
+        Irrelevant for Wi-Fi/Ethernet devices, which are commissioned over the network.
+      required: [available, source]
+      properties:
+        available: { type: boolean }
+        source:
+          type: string
+          description: 'Where the Thread credentials came from: otbr | configured | none.'
+        border_router:
+          type: string
+          description: 'Border router the credentials were read from.'
+        reason:
+          type: string
+          description: 'Why Thread commissioning is unavailable, in plain language. Absent when it is available.'
 
     Group:
       type: object

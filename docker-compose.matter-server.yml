@@ -26,8 +26,19 @@ services:
     environment:
       PRODUCTION_MODE: "true"
       LOG_LEVEL: info
+      # BLE is the bootstrap radio for onboarding a factory-fresh Thread/Wi-Fi device: it has no IP
+      # yet, so the controller reaches it over BLE just long enough to hand over the network
+      # credentials, then everything continues over IP. A device already on the network (e.g. joined
+      # via Apple Home multi-admin) is commissioned on-network and needs none of this.
+      #
+      # The dbus backend talks to the host's BlueZ daemon instead of opening a raw HCI socket, which
+      # is what keeps this container unprivileged — the socket below is the only host resource it
+      # needs. The host must have BlueZ running and the adapter powered on.
+      NOBLE_BINDINGS: dbus
+      BLUETOOTH_ADAPTER: "0"           # hci0
     volumes:
       - matter-data:/data              # fabric credentials + node database (persist across restarts)
+      - /run/dbus:/run/dbus:ro         # host BlueZ, read-only
 
 volumes:
   matter-data:

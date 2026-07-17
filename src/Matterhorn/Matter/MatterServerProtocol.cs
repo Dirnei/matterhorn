@@ -21,14 +21,28 @@ public static class MatterServerProtocol
     public static string StartListening(int messageId) =>
         JsonSerializer.Serialize(new { message_id = messageId.ToString(), command = "start_listening" });
 
-    public static string CommissionWithCode(int messageId, string setupCode) =>
+    /// <summary>
+    /// Thread credentials the controller passes to a joining device. The dataset is an opaque hex
+    /// TLV blob — read it off a border router rather than composing one here.
+    /// </summary>
+    public static string SetThreadDataset(int messageId, string dataset) =>
+        JsonSerializer.Serialize(new
+        {
+            message_id = messageId.ToString(),
+            command = "set_thread_dataset",
+            args = new { dataset },
+        });
+
+    public static string CommissionWithCode(int messageId, string setupCode, bool networkOnly) =>
         JsonSerializer.Serialize(new
         {
             message_id = messageId.ToString(),
             command = "commission_with_code",
-            // network_only forces on-network (IP) commissioning: a software controller has no
-            // Bluetooth radio, and a multi-admin device we're joining is already on Wi-Fi.
-            args = new { code = setupCode, network_only = true },
+            // network_only restricts discovery to devices already on IP (a multi-admin device we're
+            // joining, say). Clearing it lets the controller also reach a factory-fresh device over
+            // BLE — which needs a Bluetooth adapter on the controller host, and, for a Thread
+            // device, a dataset set beforehand.
+            args = new { code = setupCode, network_only = networkOnly },
         });
 
     public static string RemoveNode(int messageId, ulong nodeId) =>
@@ -71,6 +85,9 @@ public static class MatterServerProtocol
     /// Classifies an incoming frame: command replies carry a <c>message_id</c>, events don't.
     /// Returns true (and fills <paramref name="result"/>) only for reply frames.
     /// </summary>
+    private static bool Flag(JsonElement root, string name) =>
+        root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.True;
+
     public static bool TryParseResult(string json, out ServerResult result)
     {
         result = null!;
@@ -100,6 +117,19 @@ public static class MatterServerProtocol
     {
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
+
+        // The server announces itself on connect with a bare object — no message_id, no event — so
+        // it reaches us here. Identify it by sdk_version rather than by absence of anything else.
+        if (root.TryGetProperty("sdk_version", out var sdk) && root.TryGetProperty("schema_version", out var schema))
+        {
+            yield return new ControllerInfo(
+                sdk.GetString(),
+                schema.ValueKind == JsonValueKind.Number ? schema.GetInt32() : 0,
+                Flag(root, "bluetooth_enabled"),
+                Flag(root, "thread_credentials_set"));
+            yield break;
+        }
+
         if (!root.TryGetProperty("event", out var evt) || !root.TryGetProperty("data", out var data))
             yield break;
 

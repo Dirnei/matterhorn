@@ -35,6 +35,8 @@ services:
       # zero-config behaviour = the fake demo stack for anyone who just runs `up`.
       Controller__Kind: "${CONTROLLER_KIND:-fake}"
       Controller__WsUrl: "${CONTROLLER_WS_URL:-ws://localhost:5580/ws}"
+      # Border router to read Thread credentials from; empty = no Thread onboarding (see .env.example).
+      Thread__OtbrUrl: "${THREAD_OTBR_URL:-}"
       DevSeed: "${DEV_SEED:-true}"
       Mqtt__Host: "emqx"
       Mqtt__Port: "1883"

@@ -132,6 +132,78 @@ public class MatterGatewayActorTests : TestKit
     }
 
     [Fact]
+    public void Without_thread_credentials_a_commission_stays_on_network()
+    {
+        // The behaviour every device had before Thread onboarding existed: no dataset to hand over,
+        // so the device must already be reachable over IP.
+        var fake = new FakeMatterController();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, new InMemoryMqttPublisher(), new MqttTopics("matterhorn")));
+
+        gw.Tell(new CommissionRequest("MT:XXX", "tx1"));
+
+        AwaitAssert(() => Assert.Equal(("MT:XXX", true), Assert.Single(fake.Commissions)));
+        Assert.Empty(fake.ThreadDatasets);
+    }
+
+    [Fact]
+    public void With_thread_credentials_the_dataset_is_sent_before_commissioning_and_ble_is_allowed()
+    {
+        // Ordering is the point: handing over the dataset is what the BLE session exists to do, so
+        // the controller must be holding it before commissioning starts.
+        var fake = new FakeMatterController();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, new InMemoryMqttPublisher(), new MqttTopics("matterhorn"),
+            names: null, thread: new FixedThreadDatasetSource("0e08abcd")));
+
+        gw.Tell(new CommissionRequest("MT:XXX", "tx1"));
+
+        AwaitAssert(() =>
+        {
+            Assert.Equal("0e08abcd", Assert.Single(fake.ThreadDatasets));
+            Assert.Equal(("MT:XXX", false), Assert.Single(fake.Commissions));
+        });
+    }
+
+    [Fact]
+    public void The_dataset_is_resent_for_every_commission()
+    {
+        // The controller drops the credentials when its connection does, and we get no signal when
+        // that happened — so re-sending is what keeps a later commission working.
+        var fake = new FakeMatterController();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, new InMemoryMqttPublisher(), new MqttTopics("matterhorn"),
+            names: null, thread: new FixedThreadDatasetSource("0e08abcd")));
+
+        gw.Tell(new CommissionRequest("MT:AAA", "tx1"));
+        AwaitAssert(() => Assert.Single(fake.Commissions));
+        gw.Tell(new CommissionRequest("MT:BBB", "tx2"));
+
+        AwaitAssert(() => Assert.Equal(2, fake.Commissions.Count));
+        Assert.Equal(new[] { "0e08abcd", "0e08abcd" }, fake.ThreadDatasets);
+    }
+
+    [Fact]
+    public void A_failing_thread_dataset_push_is_reported_not_swallowed()
+    {
+        var fake = new FakeMatterController
+        {
+            OnSetThreadDataset = _ => Task.FromException(new InvalidOperationException("controller said no")),
+        };
+        var mqtt = new InMemoryMqttPublisher();
+        var gw = Sys.ActorOf(MatterGatewayActor.Props(fake, mqtt, new MqttTopics("matterhorn"),
+            names: null, thread: new FixedThreadDatasetSource("0e08abcd")));
+
+        gw.Tell(new CommissionRequest("MT:XXX", "tx1"));
+
+        AwaitAssert(() =>
+        {
+            var resp = Assert.Single(mqtt.Messages, m => m.Topic == "matterhorn/bridge/response/commission");
+            Assert.Contains("\"error\"", resp.Payload);
+            Assert.Contains("controller said no", resp.Payload);
+        });
+        // Commissioning without the credentials it needs would just fail slowly and confusingly.
+        Assert.Empty(fake.Commissions);
+    }
+
+    [Fact]
     public void Attribute_after_node_added_publishes_device_state()
     {
         // Regression: an attribute emitted right after NodeAdded must not be dropped — the gateway
